@@ -201,6 +201,78 @@
     return str.replace(/\d/g, '•');
   }
 
+  // ---------- "Барабан" для анимации итоговой суммы (как в Revolut) ----------
+  // Каждая цифра — лента 0-9 в окошке высотой 1em, которая переезжает
+  // transform'ом к нужной цифре. Меняются transform'ом только те разряды,
+  // которые реально изменились с прошлого рендера.
+  const ODOMETER_DIGITS = '0123456789';
+
+  function createOdometerDigit(digitChar) {
+    const wrap = document.createElement('span');
+    wrap.className = 'odometer-digit';
+
+    const strip = document.createElement('span');
+    strip.className = 'odometer-strip no-anim';
+    strip.innerHTML = ODOMETER_DIGITS.split('')
+      .map((d) => `<span class="odometer-cell">${d}</span>`)
+      .join('');
+
+    wrap.appendChild(strip);
+    setOdometerStripDigit(strip, digitChar);
+
+    // Снимаем no-anim на следующий кадр, чтобы первая расстановка не ехала,
+    // а все последующие обновления уже анимировались.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => strip.classList.remove('no-anim'));
+    });
+
+    return wrap;
+  }
+
+  function setOdometerStripDigit(strip, digitChar) {
+    const index = ODOMETER_DIGITS.indexOf(digitChar);
+    strip.style.transform = `translateY(-${index < 0 ? 0 : index}em)`;
+  }
+
+  function odometerSignature(text) {
+    return text.replace(/\d/g, 'D');
+  }
+
+  function renderOdometerValue(container, text) {
+    const prevText = container.dataset.odometerText;
+    const canUpdateInPlace =
+      prevText !== undefined &&
+      odometerSignature(prevText) === odometerSignature(text) &&
+      container.children.length === text.length;
+
+    if (canUpdateInPlace) {
+      const children = container.children;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === prevText[i]) continue; // не изменилось — не трогаем, без анимации
+        if (/\d/.test(ch)) {
+          setOdometerStripDigit(children[i].querySelector('.odometer-strip'), ch);
+        } else {
+          children[i].textContent = ch;
+        }
+      }
+    } else {
+      container.innerHTML = '';
+      for (const ch of text) {
+        if (/\d/.test(ch)) {
+          container.appendChild(createOdometerDigit(ch));
+        } else {
+          const span = document.createElement('span');
+          span.className = 'odometer-static';
+          span.textContent = ch;
+          container.appendChild(span);
+        }
+      }
+    }
+
+    container.dataset.odometerText = text;
+  }
+
   // Разбивает целую часть по разрядам пробелами прямо во время ввода:
   // "1000000" -> "1 000 000". Разделитель дробной части (запятая или
   // точка) сохраняется таким, каким его набрал пользователь.
@@ -325,7 +397,7 @@
 
     const currency = state.currencyMap.get(summary.baseCurrency);
     const totalText = formatNumber(summary.grandTotal);
-    el.grandTotalValue.textContent = state.amountsHidden ? maskDigits(totalText) : totalText;
+    renderOdometerValue(el.grandTotalValue, state.amountsHidden ? maskDigits(totalText) : totalText);
     el.grandTotalCurrency.textContent = currency ? `${currency.symbol} ${currency.code}` : summary.baseCurrency;
 
     el.txCountHint.textContent = summary.transactionsCount

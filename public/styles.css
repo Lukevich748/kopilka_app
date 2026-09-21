@@ -383,21 +383,52 @@ body { overflow-x: hidden; }
 
 .summary-amount {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 10px;
   margin-top: 8px;
 }
 
 .amount-value {
+  display: inline-flex;
+  align-items: flex-end;
   font-size: clamp(38px, 6vw, 58px);
   font-weight: 800;
   letter-spacing: -0.03em;
-  background: linear-gradient(120deg, #fff 20%, #e4d5ff 60%, #ffd6ec);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #fff;
   font-variant-numeric: tabular-nums;
-  transition: opacity 0.25s ease;
+}
+
+/* "Барабан" для суммы: каждая цифра — вертикальная лента 0-9 в окошке
+   высотой 1em, которая переезжает transform'ом к нужной цифре. */
+.odometer-digit {
+  position: relative;
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.odometer-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.odometer-strip.no-anim { transition: none; }
+
+.odometer-cell {
+  height: 1em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.odometer-static {
+  display: inline-block;
+  line-height: 1;
+  white-space: pre;
 }
 
 .amount-currency {
