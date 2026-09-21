@@ -724,27 +724,6 @@ body { overflow-x: hidden; }
   font-variant-numeric: tabular-nums;
 }
 
-/* "Пульс" по линии графика — пробегает после обновления данных (см.
-   pulseChartLine в app.js), как знак, что цифры на графике свежие. */
-.chart-pulse-dot { pointer-events: none; }
-
-.chart-pulse-core {
-  fill: var(--accent-c);
-  filter: drop-shadow(0 0 5px var(--accent-c));
-}
-
-.chart-pulse-ring {
-  fill: none;
-  stroke: var(--accent-c);
-  stroke-width: 1.5;
-  animation: chart-pulse-ring-grow 0.85s ease-out infinite;
-}
-
-@keyframes chart-pulse-ring-grow {
-  from { r: 3.5; opacity: 0.8; }
-  to { r: 12; opacity: 0; }
-}
-
 .chart-tooltip {
   position: absolute;
   z-index: 5;
