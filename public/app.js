@@ -215,15 +215,15 @@
   // transform'ом к нужной цифре. Меняются transform'ом только те разряды,
   // которые реально изменились с прошлого рендера.
   const ODOMETER_DIGITS = '0123456789';
-  const ODOMETER_SETTLE_EPSILON_PX = 0.5;
-  const ODOMETER_SETTLE_TIMEOUT_MS = 1200; // страховка на случай, если transitionend/переезд почему-то не случится
+  const ODOMETER_SETTLE_EM_FRACTION = 0.3; // остаток < 30% высоты ОДНОЙ ячейки — целевая цифра уже явно доминирует в окошке
+  const ODOMETER_SETTLE_TIMEOUT_MS = 1200; // страховка на случай, если движение почему-то не завершится
 
-  // Кривая transition у ленты (cubic-bezier с сильным ease-out) визуально
-  // "доезжает" до цели заметно раньше номинальных 0.7s из CSS — последние
-  // ~40% времени лента стоит на месте с точностью до долей пикселя. Поэтому
-  // момент для уборки лишних разрядов определяем не таймером на фиксированную
-  // длительность (это давало заметный "фриз" перед схлопыванием), а опросом
-  // реальной текущей позиции ленты на каждом кадре.
+  // Порог "доехало" должен быть долей высоты ОДНОЙ ячейки (em), а не долей
+  // всего пути разряда: если мерить в процентах от пути, разряд, едущий на
+  // несколько позиций (например с '9' на '0'), на моменте "90% пройдено"
+  // всё ещё физически показывает в окошке СОСЕДНЮЮ цифру (остаток больше
+  // полуячейки) — то есть не смазанный ноль, а чужую цифру целиком. Порог же
+  // в долях одной ячейки не зависит от того, сколько позиций проехала лента.
   function waitForStripsSettled(pending, onSettled) {
     const startedAt = performance.now();
 
@@ -233,7 +233,8 @@
       const targetIndex = ODOMETER_DIGITS.indexOf(target);
       const targetY = -targetIndex * emPx;
       const matrix = new DOMMatrixReadOnly(getComputedStyle(strip).transform);
-      return Math.abs(matrix.m42 - targetY) < ODOMETER_SETTLE_EPSILON_PX;
+      const remaining = Math.abs(matrix.m42 - targetY);
+      return remaining < emPx * ODOMETER_SETTLE_EM_FRACTION;
     }
 
     function check() {
