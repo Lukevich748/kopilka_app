@@ -69,23 +69,28 @@ app.get('/api/transactions', (req, res) => {
   res.json(sorted);
 });
 
-app.post('/api/transactions', async (req, res) => {
-  const { amount, currency, date } = req.body || {};
-
+function parseTransactionInput(body) {
+  const { amount, currency, date } = body || {};
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-    return res.status(400).json({ error: 'Сумма должна быть положительным числом' });
+    return { error: 'Сумма должна быть положительным числом' };
   }
   if (!isSupportedCurrency(currency)) {
-    return res.status(400).json({ error: 'Неподдерживаемая валюта' });
+    return { error: 'Неподдерживаемая валюта' };
   }
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
+  return { amount: round2(numericAmount), currency, date: safeDate };
+}
+
+app.post('/api/transactions', async (req, res) => {
+  const parsed = parseTransactionInput(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
 
   const tx = {
     id: crypto.randomUUID(),
-    amount: round2(numericAmount),
-    currency,
-    date: safeDate,
+    amount: parsed.amount,
+    currency: parsed.currency,
+    date: parsed.date,
     createdAt: new Date().toISOString(),
   };
 
@@ -94,6 +99,23 @@ app.post('/api/transactions', async (req, res) => {
   await writeDb(db);
 
   res.status(201).json(tx);
+});
+
+app.put('/api/transactions/:id', async (req, res) => {
+  const parsed = parseTransactionInput(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+  const db = readDb();
+  const tx = db.transactions.find((t) => t.id === req.params.id);
+  if (!tx) return res.status(404).json({ error: 'Запись не найдена' });
+
+  tx.amount = parsed.amount;
+  tx.currency = parsed.currency;
+  tx.date = parsed.date;
+  tx.updatedAt = new Date().toISOString();
+
+  await writeDb(db);
+  res.json(tx);
 });
 
 app.delete('/api/transactions/:id', async (req, res) => {

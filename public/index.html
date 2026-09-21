@@ -59,7 +59,7 @@
 
     <main class="content-grid">
       <section class="card glass form-card">
-        <h2 class="card-title">Добавить накопление</h2>
+        <h2 class="card-title" id="formTitle">Добавить накопление</h2>
         <form id="addForm" novalidate>
           <div class="field-row">
             <div class="field">
@@ -79,10 +79,13 @@
             </div>
           </div>
 
-          <button type="submit" class="submit-btn">
-            <span class="coin" aria-hidden="true">🪙</span>
-            <span>Положить в копилку</span>
-          </button>
+          <div class="form-actions">
+            <button type="submit" class="submit-btn">
+              <span class="coin" aria-hidden="true">🪙</span>
+              <span id="submitBtnLabel">Положить в копилку</span>
+            </button>
+            <button type="button" class="cancel-edit-btn" id="cancelEditBtn" hidden>Отмена</button>
+          </div>
           <p class="form-error" id="formError" role="alert"></p>
         </form>
       </section>

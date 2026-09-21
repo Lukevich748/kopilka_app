@@ -24,6 +24,7 @@
     transactions: [],
     summary: null,
     amountsHidden: loadHiddenPref(),
+    editingId: null,
   };
 
   const el = {
@@ -32,8 +33,12 @@
     amountInput: document.getElementById('amountInput'),
     dateInput: document.getElementById('dateInput'),
     addForm: document.getElementById('addForm'),
+    formCard: document.querySelector('.form-card'),
+    formTitle: document.getElementById('formTitle'),
     formError: document.getElementById('formError'),
     submitBtn: document.querySelector('.submit-btn'),
+    submitBtnLabel: document.getElementById('submitBtnLabel'),
+    cancelEditBtn: document.getElementById('cancelEditBtn'),
     grandTotalValue: document.querySelector('#grandTotal .amount-value'),
     grandTotalCurrency: document.getElementById('grandTotalCurrency'),
     txCountHint: document.getElementById('txCountHint'),
@@ -196,7 +201,8 @@
       .map((tx) => {
         const c = state.currencyMap.get(tx.currency);
         const amountText = `+${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
-        return `<div class="history-item" data-id="${tx.id}">
+        const isEditing = tx.id === state.editingId;
+        return `<div class="history-item${isEditing ? ' editing' : ''}" data-id="${tx.id}">
           <div class="item-flag">${c ? c.flag : '💰'}</div>
           <div class="item-body">
             <div class="item-top">
@@ -205,7 +211,12 @@
             </div>
             <div class="item-meta">${formatDate(tx.date)}</div>
           </div>
-          <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
+          <div class="item-actions">
+            <button class="item-edit" type="button" title="Редактировать" aria-label="Редактировать запись">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
+            <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
+          </div>
         </div>`;
       })
       .join('');
@@ -236,6 +247,36 @@
     renderSummary(summary);
   }
 
+  async function refreshTransactions() {
+    state.transactions = await api('/transactions');
+    renderHistory();
+  }
+
+  function enterEditMode(tx) {
+    state.editingId = tx.id;
+    el.amountInput.value = tx.amount;
+    el.currencySelect.value = tx.currency;
+    el.dateInput.value = tx.date;
+    el.formTitle.textContent = 'Редактировать запись';
+    el.submitBtnLabel.textContent = 'Сохранить изменения';
+    el.cancelEditBtn.hidden = false;
+    el.formError.textContent = '';
+    renderHistory();
+    el.formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    el.amountInput.focus();
+  }
+
+  function exitEditMode() {
+    state.editingId = null;
+    el.addForm.reset();
+    el.dateInput.value = todayISO();
+    el.formTitle.textContent = 'Добавить накопление';
+    el.submitBtnLabel.textContent = 'Положить в копилку';
+    el.cancelEditBtn.hidden = true;
+    el.formError.textContent = '';
+    renderHistory();
+  }
+
   el.addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     el.formError.textContent = '';
@@ -250,24 +291,37 @@
       return;
     }
 
+    const editingId = state.editingId;
     el.submitBtn.disabled = true;
     el.submitBtn.classList.add('dropping');
 
     try {
-      const tx = await api('/transactions', {
-        method: 'POST',
-        body: JSON.stringify({ amount, currency, date }),
-      });
+      if (editingId) {
+        await api(`/transactions/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ amount, currency, date }),
+        });
 
-      state.transactions.unshift(tx);
-      renderHistory();
-      await refreshSummary();
+        await refreshTransactions();
+        await refreshSummary();
+        exitEditMode();
+        showToast('Изменения сохранены');
+      } else {
+        const tx = await api('/transactions', {
+          method: 'POST',
+          body: JSON.stringify({ amount, currency, date }),
+        });
 
-      const c = state.currencyMap.get(tx.currency);
-      showToast(`Добавлено ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
+        state.transactions.unshift(tx);
+        renderHistory();
+        await refreshSummary();
 
-      el.amountInput.value = '';
-      el.amountInput.focus();
+        const c = state.currencyMap.get(tx.currency);
+        showToast(`Добавлено ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
+
+        el.amountInput.value = '';
+        el.amountInput.focus();
+      }
     } catch (err) {
       el.formError.textContent = err.message;
       showToast(err.message, 'error');
@@ -277,15 +331,28 @@
     }
   });
 
+  el.cancelEditBtn.addEventListener('click', () => {
+    exitEditMode();
+  });
+
   el.historyList.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.item-delete');
-    if (!btn) return;
-    const item = btn.closest('.history-item');
+    const editBtn = e.target.closest('.item-edit');
+    if (editBtn) {
+      const id = editBtn.closest('.history-item').dataset.id;
+      const tx = state.transactions.find((t) => t.id === id);
+      if (tx) enterEditMode(tx);
+      return;
+    }
+
+    const deleteBtn = e.target.closest('.item-delete');
+    if (!deleteBtn) return;
+    const item = deleteBtn.closest('.history-item');
     const id = item.dataset.id;
 
     item.classList.add('removing');
     try {
       await api(`/transactions/${id}`, { method: 'DELETE' });
+      if (id === state.editingId) exitEditMode();
       setTimeout(async () => {
         state.transactions = state.transactions.filter((t) => t.id !== id);
         renderHistory();

@@ -464,9 +464,14 @@ body { overflow-x: hidden; }
 
 .field input[type="date"] { color-scheme: dark; }
 
-.submit-btn {
-  width: 100%;
+.form-actions {
+  display: flex;
+  gap: 10px;
   margin-top: 6px;
+}
+
+.submit-btn {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -486,6 +491,21 @@ body { overflow-x: hidden; }
 .submit-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
 .submit-btn:active { transform: translateY(0); }
 .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.cancel-edit-btn {
+  flex: 0 0 auto;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cancel-edit-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
 .submit-btn .coin {
   display: inline-block;
@@ -553,6 +573,11 @@ body { overflow-x: hidden; }
   border-color: var(--border);
 }
 
+.history-item.editing {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
 .item-flag {
   flex: 0 0 auto;
   width: 40px;
@@ -594,6 +619,13 @@ body { overflow-x: hidden; }
   text-overflow: ellipsis;
 }
 
+.item-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.item-edit,
 .item-delete {
   flex: 0 0 auto;
   width: 32px;
@@ -610,8 +642,14 @@ body { overflow-x: hidden; }
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
+.item-edit svg { width: 15px; height: 15px; }
+
+.history-item:hover .item-edit,
 .history-item:hover .item-delete { opacity: 1; }
+.item-edit:hover { background: rgba(139, 92, 246, 0.15); color: var(--accent-a); }
 .item-delete:hover { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+
+.history-item.editing .item-edit { opacity: 1; background: rgba(139, 92, 246, 0.15); color: var(--accent-a); }
 
 .history-item.removing {
   animation: slideOut 0.25s ease forwards;
