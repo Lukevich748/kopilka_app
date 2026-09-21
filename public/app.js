@@ -664,11 +664,14 @@
       .join('');
   }
 
+  // Высота подстраивается под ТЕКУЩУЮ видимую сторону, а не под большую из
+  // двух — иначе на более короткой стороне снизу оставался пустой отступ
+  // до высоты более длинной.
   function syncRatesFlipHeight() {
     if (!el.ratesFlip) return;
-    const frontH = el.ratesFaceFront.scrollHeight;
-    const backH = el.ratesFaceBack.scrollHeight;
-    el.ratesFlip.style.height = `${Math.max(frontH, backH)}px`;
+    const flipped = el.ratesFlip.classList.contains('flipped');
+    const face = flipped ? el.ratesFaceBack : el.ratesFaceFront;
+    el.ratesFlip.style.height = `${face.scrollHeight}px`;
   }
 
   function renderRates(snapshot) {
@@ -681,6 +684,7 @@
   function setRatesFlipped(flipped) {
     el.ratesFlip.classList.toggle('flipped', flipped);
     el.ratesNominalBtn.setAttribute('aria-pressed', String(flipped));
+    syncRatesFlipHeight();
   }
 
   async function refreshRates() {
