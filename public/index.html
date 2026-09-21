@@ -87,9 +87,29 @@
           </div>
 
           <div class="field-row">
-            <div class="field">
-              <label for="dateInput">Дата</label>
-              <input id="dateInput" name="date" type="date" />
+            <div class="field date-field">
+              <label for="dateInputBtn">Дата</label>
+              <button type="button" class="date-input-btn" id="dateInputBtn" aria-haspopup="true" aria-expanded="false">
+                <span id="dateInputLabel">Сегодня</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+              </button>
+
+              <div class="date-picker" id="datePicker" hidden>
+                <div class="date-picker-header">
+                  <button type="button" class="date-nav" id="datePrevMonth" aria-label="Предыдущий месяц">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
+                  <span class="date-picker-title" id="datePickerTitle">Сентябрь 2026</span>
+                  <button type="button" class="date-nav" id="dateNextMonth" aria-label="Следующий месяц">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+                <div class="date-picker-weekdays">
+                  <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                </div>
+                <div class="date-picker-grid" id="datePickerGrid"></div>
+                <button type="button" class="date-picker-today" id="dateTodayBtn">Сегодня</button>
+              </div>
             </div>
           </div>
 

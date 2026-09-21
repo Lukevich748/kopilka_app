@@ -25,13 +25,24 @@
     summary: null,
     amountsHidden: loadHiddenPref(),
     editingId: null,
+    selectedDate: null,
+    viewYear: null,
+    viewMonth: null,
   };
 
   const el = {
     baseCurrencySelect: document.getElementById('baseCurrencySelect'),
     currencySelect: document.getElementById('currencySelect'),
     amountInput: document.getElementById('amountInput'),
-    dateInput: document.getElementById('dateInput'),
+    dateInputBtn: document.getElementById('dateInputBtn'),
+    dateInputLabel: document.getElementById('dateInputLabel'),
+    dateField: document.querySelector('.date-field'),
+    datePicker: document.getElementById('datePicker'),
+    datePickerTitle: document.getElementById('datePickerTitle'),
+    datePickerGrid: document.getElementById('datePickerGrid'),
+    datePrevMonth: document.getElementById('datePrevMonth'),
+    dateNextMonth: document.getElementById('dateNextMonth'),
+    dateTodayBtn: document.getElementById('dateTodayBtn'),
     addForm: document.getElementById('addForm'),
     formCard: document.querySelector('.form-card'),
     formTitle: document.getElementById('formTitle'),
@@ -78,6 +89,82 @@
 
   function todayISO() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  function isoFromParts(year, month, day) {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  function updateDateLabel() {
+    el.dateInputLabel.textContent = state.selectedDate === todayISO() ? 'Сегодня' : formatDate(state.selectedDate);
+  }
+
+  function renderDatePicker() {
+    const title = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(
+      new Date(state.viewYear, state.viewMonth, 1)
+    );
+    el.datePickerTitle.textContent = title;
+
+    const jsWeekday = new Date(state.viewYear, state.viewMonth, 1).getDay();
+    const leadingCount = (jsWeekday + 6) % 7; // 0=Пн ... 6=Вс
+    const daysInMonth = new Date(state.viewYear, state.viewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(state.viewYear, state.viewMonth, 0).getDate();
+
+    const cells = [];
+    for (let i = leadingCount - 1; i >= 0; i--) {
+      const day = daysInPrevMonth - i;
+      const d = new Date(state.viewYear, state.viewMonth - 1, day);
+      cells.push({ day, outside: true, iso: isoFromParts(d.getFullYear(), d.getMonth(), day) });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      cells.push({ day, outside: false, iso: isoFromParts(state.viewYear, state.viewMonth, day) });
+    }
+    const trailingCount = (7 - (cells.length % 7)) % 7;
+    for (let day = 1; day <= trailingCount; day++) {
+      const d = new Date(state.viewYear, state.viewMonth + 1, day);
+      cells.push({ day, outside: true, iso: isoFromParts(d.getFullYear(), d.getMonth(), day) });
+    }
+
+    const todayIso = todayISO();
+    el.datePickerGrid.innerHTML = cells
+      .map((cell) => {
+        const classes = ['date-day'];
+        if (cell.outside) classes.push('outside');
+        if (cell.iso === todayIso) classes.push('today');
+        if (cell.iso === state.selectedDate) classes.push('selected');
+        const disabled = cell.iso > todayIso;
+        return `<button type="button" class="${classes.join(' ')}" data-date="${cell.iso}"${disabled ? ' disabled' : ''}>${cell.day}</button>`;
+      })
+      .join('');
+  }
+
+  function handleDatePickerOutsideClick(e) {
+    if (!e.target.closest('.date-field')) closeDatePicker();
+  }
+
+  function handleDatePickerKeydown(e) {
+    if (e.key === 'Escape') closeDatePicker();
+  }
+
+  function openDatePicker() {
+    const base = state.selectedDate || todayISO();
+    const [y, m] = base.split('-').map(Number);
+    state.viewYear = y;
+    state.viewMonth = m - 1;
+    renderDatePicker();
+    el.datePicker.hidden = false;
+    el.dateInputBtn.classList.add('open');
+    el.dateInputBtn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', handleDatePickerOutsideClick);
+    document.addEventListener('keydown', handleDatePickerKeydown);
+  }
+
+  function closeDatePicker() {
+    el.datePicker.hidden = true;
+    el.dateInputBtn.classList.remove('open');
+    el.dateInputBtn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', handleDatePickerOutsideClick);
+    document.removeEventListener('keydown', handleDatePickerKeydown);
   }
 
   // Прячем только цифры, сохраняя пробелы/разделители — силуэт числа
@@ -338,7 +425,8 @@
     state.editingId = tx.id;
     el.amountInput.value = formatAmountString(String(tx.amount));
     el.currencySelect.value = tx.currency;
-    el.dateInput.value = tx.date;
+    state.selectedDate = tx.date;
+    updateDateLabel();
     el.formTitle.textContent = 'Редактировать запись';
     el.submitBtnLabel.textContent = 'Сохранить изменения';
     el.cancelEditBtn.hidden = false;
@@ -351,7 +439,8 @@
   function exitEditMode() {
     state.editingId = null;
     el.addForm.reset();
-    el.dateInput.value = todayISO();
+    state.selectedDate = todayISO();
+    updateDateLabel();
     el.formTitle.textContent = 'Добавить накопление';
     el.submitBtnLabel.textContent = 'Положить в копилку';
     el.cancelEditBtn.hidden = true;
@@ -365,7 +454,7 @@
 
     const amount = parseAmountInput(el.amountInput.value);
     const currency = el.currencySelect.value;
-    const date = el.dateInput.value || todayISO();
+    const date = state.selectedDate || todayISO();
 
     if (!amount || amount <= 0) {
       el.formError.textContent = 'Введите сумму больше нуля';
@@ -498,8 +587,45 @@
     reformatAmountInput(el.amountInput);
   });
 
-  el.dateInput.value = todayISO();
-  el.dateInput.max = todayISO();
+  el.dateInputBtn.addEventListener('click', () => {
+    if (el.datePicker.hidden) openDatePicker();
+    else closeDatePicker();
+  });
+
+  el.datePrevMonth.addEventListener('click', () => {
+    state.viewMonth -= 1;
+    if (state.viewMonth < 0) {
+      state.viewMonth = 11;
+      state.viewYear -= 1;
+    }
+    renderDatePicker();
+  });
+
+  el.dateNextMonth.addEventListener('click', () => {
+    state.viewMonth += 1;
+    if (state.viewMonth > 11) {
+      state.viewMonth = 0;
+      state.viewYear += 1;
+    }
+    renderDatePicker();
+  });
+
+  el.datePickerGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.date-day');
+    if (!btn || btn.disabled) return;
+    state.selectedDate = btn.dataset.date;
+    updateDateLabel();
+    closeDatePicker();
+  });
+
+  el.dateTodayBtn.addEventListener('click', () => {
+    state.selectedDate = todayISO();
+    updateDateLabel();
+    closeDatePicker();
+  });
+
+  state.selectedDate = todayISO();
+  updateDateLabel();
 
   loadAll().catch((err) => {
     console.error(err);
