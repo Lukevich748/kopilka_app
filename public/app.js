@@ -215,7 +215,38 @@
   // transform'ом к нужной цифре. Меняются transform'ом только те разряды,
   // которые реально изменились с прошлого рендера.
   const ODOMETER_DIGITS = '0123456789';
-  const ODOMETER_TRANSITION_MS = 700; // держим в синхроне с .odometer-strip в CSS
+  const ODOMETER_SETTLE_EPSILON_PX = 0.5;
+  const ODOMETER_SETTLE_TIMEOUT_MS = 1200; // страховка на случай, если transitionend/переезд почему-то не случится
+
+  // Кривая transition у ленты (cubic-bezier с сильным ease-out) визуально
+  // "доезжает" до цели заметно раньше номинальных 0.7s из CSS — последние
+  // ~40% времени лента стоит на месте с точностью до долей пикселя. Поэтому
+  // момент для уборки лишних разрядов определяем не таймером на фиксированную
+  // длительность (это давало заметный "фриз" перед схлопыванием), а опросом
+  // реальной текущей позиции ленты на каждом кадре.
+  function waitForStripsSettled(pending, onSettled) {
+    const startedAt = performance.now();
+
+    function isSettled({ strip, target }) {
+      const wrap = strip.parentElement;
+      const emPx = wrap.getBoundingClientRect().height || 1;
+      const targetIndex = ODOMETER_DIGITS.indexOf(target);
+      const targetY = -targetIndex * emPx;
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(strip).transform);
+      return Math.abs(matrix.m42 - targetY) < ODOMETER_SETTLE_EPSILON_PX;
+    }
+
+    function check() {
+      const timedOut = performance.now() - startedAt > ODOMETER_SETTLE_TIMEOUT_MS;
+      if (timedOut || pending.every(isSettled)) {
+        onSettled();
+        return;
+      }
+      requestAnimationFrame(check);
+    }
+
+    requestAnimationFrame(check);
+  }
 
   function buildOdometerStrip(startDigit) {
     const strip = document.createElement('span');
@@ -351,24 +382,23 @@
     });
 
     void container.offsetHeight; // форсируем layout со стартовыми позициями
+
+    const token = (container._odometerShrinkToken = (container._odometerShrinkToken || 0) + 1);
+
     requestAnimationFrame(() => {
       pending.forEach(({ strip, target }) => setOdometerStripDigit(strip, target));
+      waitForStripsSettled(pending, () => {
+        if (container._odometerShrinkToken === token) rebuildOdometer(container, text);
+      });
     });
-
-    if (container._odometerFinalizeTimer) clearTimeout(container._odometerFinalizeTimer);
-    container._odometerFinalizeTimer = setTimeout(() => {
-      container._odometerFinalizeTimer = null;
-      if (container.dataset.odometerText === text) rebuildOdometer(container, text);
-    }, ODOMETER_TRANSITION_MS);
   }
 
   function renderOdometerValue(container, text) {
     const prevText = container.dataset.odometerText;
 
-    if (container._odometerFinalizeTimer) {
-      clearTimeout(container._odometerFinalizeTimer);
-      container._odometerFinalizeTimer = null;
-    }
+    // Инвалидируем незавершённый опрос "доехала ли лента" от предыдущего
+    // сокращения разрядности, если до его завершения прилетел новый рендер.
+    container._odometerShrinkToken = (container._odometerShrinkToken || 0) + 1;
 
     if (prevText === undefined) {
       rebuildOdometer(container, text);
