@@ -31,15 +31,26 @@
     </header>
 
     <section class="summary-card glass" id="summaryCard">
-      <div class="summary-main">
-        <span class="summary-label">Всего накоплено</span>
-        <div class="summary-amount" id="grandTotal">
-          <span class="amount-value">0</span>
-          <span class="amount-currency" id="grandTotalCurrency">USD</span>
+      <div class="summary-left">
+        <div class="summary-main">
+          <span class="summary-label">Всего накоплено</span>
+          <div class="summary-amount" id="grandTotal">
+            <span class="amount-value">0</span>
+            <span class="amount-currency" id="grandTotalCurrency">USD</span>
+          </div>
+          <span class="summary-hint" id="txCountHint">Пока нет ни одного пополнения</span>
         </div>
-        <span class="summary-hint" id="txCountHint">Пока нет ни одного пополнения</span>
+        <div class="summary-chips" id="currencyChips"></div>
       </div>
-      <div class="summary-chips" id="currencyChips"></div>
+
+      <aside class="rates-panel">
+        <div class="rates-panel-header">
+          <h3>Курсы валют</h3>
+          <button type="button" class="rates-refresh" id="ratesRefreshBtn" title="Обновить курсы" aria-label="Обновить курсы">↻</button>
+        </div>
+        <div class="rates-list" id="ratesList"></div>
+        <span class="rates-updated" id="ratesUpdated">Загрузка курсов…</span>
+      </aside>
     </section>
 
     <main class="content-grid">

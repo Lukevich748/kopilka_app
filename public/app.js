@@ -22,6 +22,9 @@
     historyCount: document.getElementById('historyCount'),
     emptyState: document.getElementById('emptyState'),
     toast: document.getElementById('toast'),
+    ratesList: document.getElementById('ratesList'),
+    ratesUpdated: document.getElementById('ratesUpdated'),
+    ratesRefreshBtn: document.getElementById('ratesRefreshBtn'),
   };
 
   const numberFormatCache = new Map();
@@ -35,6 +38,16 @@
   function formatDate(isoDate) {
     const d = new Date(`${isoDate}T00:00:00`);
     return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+  }
+
+  function formatRateValue(value) {
+    return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+  }
+
+  function formatDateTime(isoString) {
+    return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(
+      new Date(isoString)
+    );
   }
 
   function todayISO() {
@@ -107,6 +120,38 @@
     return 'пополнений';
   }
 
+  function renderRates(snapshot) {
+    const usd = snapshot.rates.find((r) => r.code === 'USD');
+    const usdSymbol = usd ? usd.symbol : '$';
+
+    el.ratesList.innerHTML = snapshot.rates
+      .filter((r) => r.code !== 'USD')
+      .map(
+        (r) => `<div class="rate-row">
+          <span class="rate-pair">${r.flag} 1 ${r.code}</span>
+          <span class="rate-value">${formatRateValue(r.rateToUSD)} ${usdSymbol}</span>
+        </div>`
+      )
+      .join('');
+
+    const isLive = snapshot.source === 'live';
+    let statusText;
+    if (isLive) {
+      statusText = `Обновлено ${formatDateTime(snapshot.updatedAt)}`;
+      if (snapshot.lastError) statusText += ' · последнее обновление не удалось';
+    } else {
+      statusText = 'Курс приблизительный — нет связи с сервером курсов';
+    }
+    el.ratesUpdated.textContent = statusText;
+    el.ratesUpdated.classList.toggle('stale', !isLive);
+  }
+
+  async function refreshRates() {
+    const snapshot = await api('/rates/refresh', { method: 'POST' });
+    renderRates(snapshot);
+    return snapshot;
+  }
+
   function renderHistory() {
     el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
 
@@ -135,11 +180,12 @@
   }
 
   async function loadAll() {
-    const [currencies, settings, transactions, summary] = await Promise.all([
+    const [currencies, settings, transactions, summary, rates] = await Promise.all([
       api('/currencies'),
       api('/settings'),
       api('/transactions'),
       api('/summary'),
+      api('/rates'),
     ]);
 
     state.currencies = currencies;
@@ -150,6 +196,7 @@
     renderCurrencySelects();
     renderHistory();
     renderSummary(summary);
+    renderRates(rates);
   }
 
   async function refreshSummary() {
@@ -227,6 +274,25 @@
       await refreshSummary();
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  });
+
+  el.ratesRefreshBtn.addEventListener('click', async () => {
+    el.ratesRefreshBtn.disabled = true;
+    el.ratesRefreshBtn.classList.add('spinning');
+    try {
+      const snapshot = await refreshRates();
+      await refreshSummary();
+      if (snapshot.lastError) {
+        showToast(`Не удалось обновить курсы: ${snapshot.lastError}`, 'error');
+      } else {
+        showToast('Курсы обновлены');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      el.ratesRefreshBtn.disabled = false;
+      el.ratesRefreshBtn.classList.remove('spinning');
     }
   });
 

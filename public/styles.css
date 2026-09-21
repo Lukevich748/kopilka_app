@@ -174,6 +174,15 @@ body { overflow-x: hidden; }
   padding: 32px;
   margin-bottom: 22px;
   animation: rise 0.6s ease both;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.summary-left {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .summary-label {
@@ -222,6 +231,98 @@ body { overflow-x: hidden; }
   gap: 10px;
   margin-top: 22px;
 }
+
+/* ---------- Rates panel ---------- */
+.rates-panel {
+  flex: 0 0 260px;
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  animation: pop 0.4s 0.15s ease both;
+}
+
+@media (max-width: 720px) {
+  .summary-card { flex-direction: column; }
+  .rates-panel { flex: 1 1 auto; width: 100%; }
+}
+
+.rates-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.rates-panel-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.rates-refresh {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.4s ease;
+}
+
+.rates-refresh:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+.rates-refresh.spinning { animation: spin 0.7s linear infinite; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.rates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  gap: 10px;
+}
+
+.rate-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.rate-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rates-updated {
+  display: block;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.rates-updated.stale { color: var(--danger); }
 
 .chip {
   display: flex;

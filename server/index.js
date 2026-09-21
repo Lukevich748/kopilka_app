@@ -3,7 +3,8 @@ const crypto = require('crypto');
 const express = require('express');
 
 const { readDb, writeDb } = require('./db');
-const { CURRENCIES, isSupportedCurrency, convert } = require('./currencies');
+const { CURRENCIES, isSupportedCurrency } = require('./currencies');
+const rates = require('./rates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,7 +22,7 @@ function computeSummary(db) {
 
   let grandTotal = 0;
   for (const [code, amount] of Object.entries(totalsByCurrency)) {
-    const converted = convert(amount, code, baseCurrency);
+    const converted = rates.convert(amount, code, baseCurrency);
     if (converted !== null) grandTotal += converted;
   }
 
@@ -110,6 +111,17 @@ app.get('/api/summary', (req, res) => {
   res.json(computeSummary(db));
 });
 
+// --- Курсы валют ---
+app.get('/api/rates', (req, res) => {
+  res.json(rates.getSnapshot());
+});
+
+app.post('/api/rates/refresh', async (req, res) => {
+  await rates.fetchLiveRates();
+  res.json(rates.getSnapshot());
+});
+
 app.listen(PORT, () => {
   console.log(`\n🐷  Копилка запущена: http://localhost:${PORT}\n`);
+  rates.startAutoRefresh();
 });
