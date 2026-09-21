@@ -36,6 +36,24 @@
     }
   }
 
+  const CHART_COLLAPSED_KEY = 'kopilka:chartCollapsed';
+
+  function loadChartCollapsedPref() {
+    try {
+      return localStorage.getItem(CHART_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function saveChartCollapsedPref(collapsed) {
+    try {
+      localStorage.setItem(CHART_COLLAPSED_KEY, collapsed ? '1' : '0');
+    } catch {
+      /* приватный режим браузера — просто не сохраняем предпочтение */
+    }
+  }
+
   const state = {
     currencies: [],
     currencyMap: new Map(),
@@ -46,6 +64,7 @@
     summary: null,
     chartData: null,
     chartGeometry: null,
+    chartCollapsed: loadChartCollapsedPref(),
     amountsHidden: loadHiddenPref(),
     transactionType: 'deposit',
     editingId: null,
@@ -98,6 +117,8 @@
     ratesNominalCloseBtn: document.getElementById('ratesNominalCloseBtn'),
     ratesNominalList: document.getElementById('ratesNominalList'),
     visibilityToggle: document.getElementById('visibilityToggle'),
+    chartCollapseBtn: document.getElementById('chartCollapseBtn'),
+    chartBody: document.getElementById('chartBody'),
     chartWrap: document.getElementById('chartWrap'),
     chartSvg: document.getElementById('chartSvg'),
     chartGrid: document.getElementById('chartGrid'),
@@ -830,6 +851,62 @@
     renderChart(data);
   }
 
+  // Сворачивает/разворачивает тело карточки графика (сам график + пустое
+  // состояние) плавным изменением высоты. Двойной rAF — тот же приём, что
+  // и в collapseHistoryListToEmptyState: одного forced reflow не всегда
+  // достаточно, чтобы браузер гарантированно зафиксировал стартовое
+  // состояние отдельным кадром перед стартом transition.
+  function setChartCollapsed(collapsed, { animate = true } = {}) {
+    state.chartCollapsed = collapsed;
+    saveChartCollapsedPref(collapsed);
+    el.chartCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    el.chartCollapseBtn.classList.toggle('collapsed', collapsed);
+
+    const body = el.chartBody;
+
+    if (!animate) {
+      body.style.height = collapsed ? '0px' : '';
+      body.style.opacity = collapsed ? '0' : '';
+      body.style.overflow = collapsed ? 'hidden' : '';
+      return;
+    }
+
+    const startHeight = body.getBoundingClientRect().height;
+    body.style.overflow = 'hidden';
+    body.style.height = `${startHeight}px`;
+    body.style.opacity = collapsed ? '1' : '0';
+    void body.offsetHeight; // форсируем layout с исходной высотой
+
+    let targetHeight = 0;
+    if (!collapsed) {
+      body.style.height = 'auto';
+      targetHeight = body.getBoundingClientRect().height;
+      body.style.height = `${startHeight}px`;
+      void body.offsetHeight;
+    }
+
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      body.style.transition = '';
+      body.style.height = collapsed ? '0px' : '';
+      body.style.overflow = collapsed ? 'hidden' : '';
+    };
+
+    requestAnimationFrame(() => {
+      void body.offsetHeight;
+      body.style.transition = 'height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease';
+      requestAnimationFrame(() => {
+        body.style.height = `${collapsed ? 0 : targetHeight}px`;
+        body.style.opacity = collapsed ? '0' : '1';
+      });
+    });
+
+    body.addEventListener('transitionend', cleanup, { once: true });
+    setTimeout(cleanup, 450);
+  }
+
   function svgCoordsFromEvent(evt) {
     const rect = el.chartSvg.getBoundingClientRect();
     const viewBox = el.chartSvg.viewBox.baseVal;
@@ -1514,6 +1591,11 @@
   state.selectedDate = todayISO();
   updateDateLabel();
   updateFormChrome();
+
+  el.chartCollapseBtn.addEventListener('click', () => {
+    setChartCollapsed(!state.chartCollapsed);
+  });
+  setChartCollapsed(state.chartCollapsed, { animate: false });
 
   if (window.ResizeObserver) {
     let resizeFrame = null;

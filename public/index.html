@@ -100,36 +100,41 @@
           <h2 class="card-title">Динамика накоплений</h2>
           <p class="chart-subtitle" id="chartSubtitle">Изменение общей суммы по месяцам</p>
         </div>
+        <button type="button" class="chart-collapse-btn" id="chartCollapseBtn" title="Свернуть график" aria-label="Свернуть график" aria-expanded="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
 
-      <div class="chart-wrap" id="chartWrap">
-        <svg id="chartSvg" viewBox="0 0 640 240" aria-hidden="true">
-          <defs>
-            <linearGradient id="chartFillGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" style="stop-color:var(--accent-a)" stop-opacity="0.28" />
-              <stop offset="100%" style="stop-color:var(--accent-a)" stop-opacity="0" />
-            </linearGradient>
-          </defs>
-          <g id="chartGrid"></g>
-          <path id="chartArea" fill="url(#chartFillGrad)" stroke="none"></path>
-          <path id="chartLine" fill="none" stroke="var(--accent-a)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
-          <line id="chartCrosshair" x1="0" y1="0" x2="0" y2="0" stroke="var(--border)" stroke-width="1" visibility="hidden"></line>
-          <circle id="chartHoverPulseRing" class="chart-hover-pulse-ring" r="5" visibility="hidden"></circle>
-          <circle id="chartHoverDot" class="chart-hover-dot" r="5" fill="var(--accent-a)" stroke="var(--bg)" stroke-width="2" visibility="hidden"></circle>
-          <circle id="chartEndDot" r="4.5" fill="var(--accent-a)" stroke="var(--bg)" stroke-width="2"></circle>
-          <text id="chartEndLabel" class="chart-end-label"></text>
-          <g id="chartXLabels"></g>
-        </svg>
-        <div class="chart-tooltip" id="chartTooltip" hidden>
-          <div class="chart-tooltip-month" id="chartTooltipMonth"></div>
-          <div class="chart-tooltip-total" id="chartTooltipTotal"></div>
-          <div class="chart-tooltip-added" id="chartTooltipAdded"></div>
+      <div class="chart-body" id="chartBody">
+        <div class="chart-wrap" id="chartWrap">
+          <svg id="chartSvg" viewBox="0 0 640 240" aria-hidden="true">
+            <defs>
+              <linearGradient id="chartFillGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style="stop-color:var(--accent-a)" stop-opacity="0.28" />
+                <stop offset="100%" style="stop-color:var(--accent-a)" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <g id="chartGrid"></g>
+            <path id="chartArea" fill="url(#chartFillGrad)" stroke="none"></path>
+            <path id="chartLine" fill="none" stroke="var(--accent-a)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            <line id="chartCrosshair" x1="0" y1="0" x2="0" y2="0" stroke="var(--border)" stroke-width="1" visibility="hidden"></line>
+            <circle id="chartHoverPulseRing" class="chart-hover-pulse-ring" r="5" visibility="hidden"></circle>
+            <circle id="chartHoverDot" class="chart-hover-dot" r="5" fill="var(--accent-a)" stroke="var(--bg)" stroke-width="2" visibility="hidden"></circle>
+            <circle id="chartEndDot" r="4.5" fill="var(--accent-a)" stroke="var(--bg)" stroke-width="2"></circle>
+            <text id="chartEndLabel" class="chart-end-label"></text>
+            <g id="chartXLabels"></g>
+          </svg>
+          <div class="chart-tooltip" id="chartTooltip" hidden>
+            <div class="chart-tooltip-month" id="chartTooltipMonth"></div>
+            <div class="chart-tooltip-total" id="chartTooltipTotal"></div>
+            <div class="chart-tooltip-added" id="chartTooltipAdded"></div>
+          </div>
         </div>
-      </div>
 
-      <div class="chart-empty" id="chartEmpty" hidden>
-        <div class="empty-icon">📈</div>
-        <p>Добавьте операции хотя бы за пару месяцев,<br />чтобы увидеть график динамики.</p>
+        <div class="chart-empty" id="chartEmpty" hidden>
+          <div class="empty-icon">📈</div>
+          <p>Добавьте операции хотя бы за пару месяцев,<br />чтобы увидеть график динамики.</p>
+        </div>
       </div>
     </section>
 
