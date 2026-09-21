@@ -807,39 +807,129 @@
   el.chartSvg.addEventListener('pointermove', handleChartPointerMove);
   el.chartSvg.addEventListener('pointerleave', handleChartPointerLeave);
 
+  const HISTORY_ITEM_TEMPLATE = `
+    <div class="item-flag"></div>
+    <div class="item-body">
+      <div class="item-top">
+        <span class="item-amount"></span>
+        <span class="item-currency-code"></span>
+      </div>
+      <div class="item-meta"></div>
+    </div>
+    <div class="item-actions">
+      <button class="item-edit" type="button" title="Редактировать" aria-label="Редактировать запись">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
+    </div>`;
+
+  // Обновляет только то, что реально зависит от суммы/маски приватности —
+  // используется и при первой отрисовке записи, и при переключении глазика,
+  // без пересоздания DOM-узла.
+  function updateHistoryItemAmount(itemEl, tx) {
+    const c = state.currencyMap.get(tx.currency);
+    const isWithdrawal = tx.type === 'withdrawal';
+    const amountText = `${isWithdrawal ? '−' : '+'}${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
+    const amountEl = itemEl.querySelector('.item-amount');
+    amountEl.textContent = state.amountsHidden ? maskDigits(amountText) : amountText;
+    amountEl.classList.toggle('negative', isWithdrawal);
+  }
+
+  function createHistoryItemElement(tx) {
+    const c = state.currencyMap.get(tx.currency);
+    const isWithdrawal = tx.type === 'withdrawal';
+    const itemEl = document.createElement('div');
+    itemEl.className = `history-item${tx.id === state.editingId ? ' editing' : ''}${isWithdrawal ? ' withdrawal' : ''}`;
+    itemEl.dataset.id = tx.id;
+    itemEl.innerHTML = HISTORY_ITEM_TEMPLATE;
+    itemEl.querySelector('.item-flag').textContent = c ? c.flag : '💰';
+    itemEl.querySelector('.item-currency-code').textContent = tx.currency;
+    itemEl.querySelector('.item-meta').textContent = formatDate(tx.date);
+    updateHistoryItemAmount(itemEl, tx);
+    return itemEl;
+  }
+
+  function showEmptyHistoryState() {
+    el.historyList.innerHTML = '';
+    el.historyList.appendChild(el.emptyState);
+  }
+
+  // Полная перерисовка — только когда список данных реально пересобрали
+  // целиком (первая загрузка, перечитывание после сохранения правки).
+  // Точечные операции (добавление/удаление одной записи, смена маски,
+  // подсветка редактируемой строки) не должны трогать остальные узлы —
+  // иначе все строки одновременно переигрывают анимацию появления и
+  // список на секунду "подвисает".
   function renderHistory() {
     el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
 
     if (!state.transactions.length) {
-      el.historyList.innerHTML = '';
-      el.historyList.appendChild(el.emptyState);
+      showEmptyHistoryState();
       return;
     }
 
-    el.historyList.innerHTML = state.transactions
-      .map((tx) => {
-        const c = state.currencyMap.get(tx.currency);
-        const isWithdrawal = tx.type === 'withdrawal';
-        const amountText = `${isWithdrawal ? '−' : '+'}${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
-        const isEditing = tx.id === state.editingId;
-        return `<div class="history-item${isEditing ? ' editing' : ''}${isWithdrawal ? ' withdrawal' : ''}" data-id="${tx.id}">
-          <div class="item-flag">${c ? c.flag : '💰'}</div>
-          <div class="item-body">
-            <div class="item-top">
-              <span class="item-amount${isWithdrawal ? ' negative' : ''}">${state.amountsHidden ? maskDigits(amountText) : amountText}</span>
-              <span class="item-currency-code">${tx.currency}</span>
-            </div>
-            <div class="item-meta">${formatDate(tx.date)}</div>
-          </div>
-          <div class="item-actions">
-            <button class="item-edit" type="button" title="Редактировать" aria-label="Редактировать запись">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            </button>
-            <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
-          </div>
-        </div>`;
-      })
-      .join('');
+    const fragment = document.createDocumentFragment();
+    state.transactions.forEach((tx) => fragment.appendChild(createHistoryItemElement(tx)));
+    el.historyList.innerHTML = '';
+    el.historyList.appendChild(fragment);
+  }
+
+  // Добавляет одну новую запись в начало списка без пересборки остальных.
+  function prependHistoryItem(tx) {
+    if (!el.historyList.querySelector('.history-item')) {
+      el.historyList.innerHTML = '';
+    }
+    el.historyList.insertBefore(createHistoryItemElement(tx), el.historyList.firstChild);
+    el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
+  }
+
+  // Плавно убирает одну запись: схлопывает её высоту/отступы вместе с fade,
+  // остальные строки просто "подъезжают" за счёт обычного flow вёрстки —
+  // никакой пересборки соседних узлов и повторной анимации появления.
+  function removeHistoryItemAnimated(id) {
+    el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
+
+    const itemEl = el.historyList.querySelector(`.history-item[data-id="${id}"]`);
+    if (!itemEl) {
+      if (!state.transactions.length) showEmptyHistoryState();
+      return;
+    }
+
+    const rect = itemEl.getBoundingClientRect();
+    itemEl.style.height = `${rect.height}px`;
+    void itemEl.offsetHeight; // форсируем layout с явной высотой перед стартом transition
+    itemEl.classList.add('leaving');
+    itemEl.style.height = '0px';
+    itemEl.style.paddingTop = '0px';
+    itemEl.style.paddingBottom = '0px';
+
+    let finished = false;
+    const finalize = () => {
+      if (finished) return;
+      finished = true;
+      itemEl.remove();
+      if (!state.transactions.length) showEmptyHistoryState();
+    };
+    itemEl.addEventListener('transitionend', finalize, { once: true });
+    setTimeout(finalize, 400); // страховка, если transitionend почему-то не пришёл
+  }
+
+  // Подсвечивает редактируемую запись точечно, без пересборки списка.
+  function setEditingHighlight(id) {
+    el.historyList.querySelectorAll('.history-item.editing').forEach((node) => {
+      if (node.dataset.id !== id) node.classList.remove('editing');
+    });
+    if (!id) return;
+    const node = el.historyList.querySelector(`.history-item[data-id="${id}"]`);
+    if (node) node.classList.add('editing');
+  }
+
+  // Точечно обновляет отображение сумм при переключении маски приватности.
+  function updateHistoryMasking() {
+    state.transactions.forEach((tx) => {
+      const node = el.historyList.querySelector(`.history-item[data-id="${tx.id}"]`);
+      if (node) updateHistoryItemAmount(node, tx);
+    });
   }
 
   async function loadAll() {
@@ -921,7 +1011,7 @@
     updateFormChrome();
     el.cancelEditBtn.hidden = false;
     el.formError.textContent = '';
-    renderHistory();
+    setEditingHighlight(tx.id);
     el.formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     el.amountInput.focus({ preventScroll: true });
   }
@@ -936,7 +1026,7 @@
     updateFormChrome();
     el.cancelEditBtn.hidden = true;
     el.formError.textContent = '';
-    renderHistory();
+    setEditingHighlight(null);
   }
 
   el.addForm.addEventListener('submit', async (e) => {
@@ -976,7 +1066,7 @@
         });
 
         state.transactions.unshift(tx);
-        renderHistory();
+        prependHistoryItem(tx);
         await refreshSummary();
 
         const c = state.currencyMap.get(tx.currency);
@@ -1045,19 +1135,15 @@
   el.deleteConfirmOkBtn.addEventListener('click', async () => {
     const id = state.pendingDeleteId;
     if (!id) return;
-    const item = el.historyList.querySelector(`.history-item[data-id="${id}"]`);
 
     el.deleteConfirmOkBtn.disabled = true;
     try {
       await api(`/transactions/${id}`, { method: 'DELETE' });
       closeDeleteConfirm();
       if (id === state.editingId) exitEditMode();
-      if (item) item.classList.add('removing');
-      setTimeout(async () => {
-        state.transactions = state.transactions.filter((t) => t.id !== id);
-        renderHistory();
-        await refreshSummary();
-      }, 220);
+      state.transactions = state.transactions.filter((t) => t.id !== id);
+      removeHistoryItemAnimated(id);
+      await refreshSummary();
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -1111,7 +1197,7 @@
     updateVisibilityToggleUI();
     if (state.summary) renderSummary(state.summary);
     if (state.chartData) renderChart(state.chartData);
-    renderHistory();
+    updateHistoryMasking();
   });
 
   // ---------- Настройки: управление списком доступных валют ----------

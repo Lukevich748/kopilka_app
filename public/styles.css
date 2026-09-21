@@ -1216,16 +1216,21 @@ body { overflow-x: hidden; }
 
 .history-item.editing .item-edit { opacity: 1; background: rgba(139, 92, 246, 0.15); color: var(--accent-a); }
 
-.history-item.removing {
-  animation: slideOut 0.25s ease forwards;
+/* Уходящая запись: схлопываем высоту/отступы вместе с fade — соседние
+   записи плавно "подъезжают" на освободившееся место одним движением,
+   а не дёргаются после того, как запись уже пропала. */
+.history-item.leaving {
+  transition: height 0.28s ease, padding-top 0.28s ease, padding-bottom 0.28s ease,
+    opacity 0.2s ease, transform 0.25s ease;
+  opacity: 0;
+  transform: translateX(14px) scale(0.97);
+  overflow: hidden;
+  pointer-events: none;
 }
 
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideOut {
-  to { opacity: 0; transform: translateX(12px) scale(0.98); }
 }
 
 .empty-state {
@@ -1237,6 +1242,7 @@ body { overflow-x: hidden; }
   gap: 10px;
   padding: 56px 20px;
   color: var(--text-faint);
+  animation: rise 0.35s ease both;
 }
 
 .empty-icon { font-size: 42px; opacity: 0.7; }
