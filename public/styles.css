@@ -418,7 +418,6 @@ body { overflow-x: hidden; }
 .chart-x-label {
   fill: var(--text-faint);
   font-size: 11px;
-  text-anchor: middle;
 }
 
 .chart-end-label {

@@ -418,14 +418,23 @@
     el.chartWrap.hidden = false;
     el.chartEmpty.hidden = true;
 
+    // ViewBox is set to the SVG's own rendered pixel size (measured after
+    // un-hiding it above) so 1 viewBox unit == 1 CSS px in both directions.
+    // Without this, a fixed viewBox stretched to a much wider card via
+    // preserveAspectRatio would scale X and Y differently and visibly
+    // distort the line and every label.
+    const width = el.chartSvg.clientWidth || CHART_W;
+    const height = el.chartSvg.clientHeight || CHART_H;
+    el.chartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
     const currency = state.currencyMap.get(data.baseCurrency);
     const symbol = currency ? currency.symbol : '';
 
     const { left, right, top, bottom } = CHART_MARGIN;
     const plotLeft = left;
-    const plotRight = CHART_W - right;
+    const plotRight = width - right;
     const plotTop = top;
-    const plotBottom = CHART_H - bottom;
+    const plotBottom = height - bottom;
     const plotWidth = plotRight - plotLeft;
     const plotHeight = plotBottom - plotTop;
 
@@ -461,6 +470,7 @@
 
     const endValueText = formatNumber(points[lastIndex].total);
     el.chartEndLabel.textContent = `${state.amountsHidden ? maskDigits(endValueText) : endValueText} ${symbol}`;
+    el.chartEndLabel.setAttribute('text-anchor', 'end');
     el.chartEndLabel.setAttribute('x', (lastX - 8).toFixed(2));
     el.chartEndLabel.setAttribute('y', Math.max(lastY - 12, 12).toFixed(2));
 
@@ -469,7 +479,8 @@
     el.chartXLabels.innerHTML = points
       .map((p, i) => {
         if (i % step !== 0 && i !== points.length - 1) return '';
-        return `<text class="chart-x-label" x="${xAt(i).toFixed(2)}" y="${CHART_H - 8}">${monthLabel(p.month, { short: true })}</text>`;
+        const anchor = i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle';
+        return `<text class="chart-x-label" x="${xAt(i).toFixed(2)}" y="${height - 8}" style="text-anchor:${anchor}">${monthLabel(p.month, { short: true })}</text>`;
       })
       .join('');
   }
@@ -819,6 +830,16 @@
 
   state.selectedDate = todayISO();
   updateDateLabel();
+
+  if (window.ResizeObserver) {
+    let resizeFrame = null;
+    const chartResizeObserver = new ResizeObserver(() => {
+      if (!state.chartData) return;
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => renderChart(state.chartData));
+    });
+    chartResizeObserver.observe(el.chartWrap);
+  }
 
   loadAll().catch((err) => {
     console.error(err);
