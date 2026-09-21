@@ -215,6 +215,7 @@
   // transform'ом к нужной цифре. Меняются transform'ом только те разряды,
   // которые реально изменились с прошлого рендера.
   const ODOMETER_DIGITS = '0123456789';
+  const ODOMETER_TRANSITION_MS = 700; // держим в синхроне с .odometer-strip в CSS
 
   function buildOdometerStrip(startDigit) {
     const strip = document.createElement('span');
@@ -324,8 +325,50 @@
     });
   }
 
+  // Число уменьшилось в разрядах (100 -> 0, 10 000 -> 1 000 и т.п.): пока
+  // едет анимация, держим старое количество разрядов, выравнивая по правому
+  // краю — лишние старшие разряды слева докручиваются до '0', а не исчезают
+  // мгновенно. Когда переезд лент завершён, лишние разряды уже показывают
+  // '0' и их можно тихо убрать из DOM без видимого скачка.
+  function rebuildOdometerShrink(container, prevText, text) {
+    const oldChars = prevText.split('');
+    const newChars = text.split('');
+    const diff = oldChars.length - newChars.length;
+
+    container.innerHTML = '';
+    const pending = [];
+
+    oldChars.forEach((oldCh, i) => {
+      const newCh = i >= diff ? newChars[i - diff] : null;
+      if (/\d/.test(oldCh)) {
+        const target = newCh && /\d/.test(newCh) ? newCh : '0';
+        const { wrap, strip } = createOdometerDigitAnimatable(oldCh);
+        container.appendChild(wrap);
+        pending.push({ strip, target });
+      } else {
+        container.appendChild(createStaticSpan(oldCh));
+      }
+    });
+
+    void container.offsetHeight; // форсируем layout со стартовыми позициями
+    requestAnimationFrame(() => {
+      pending.forEach(({ strip, target }) => setOdometerStripDigit(strip, target));
+    });
+
+    if (container._odometerFinalizeTimer) clearTimeout(container._odometerFinalizeTimer);
+    container._odometerFinalizeTimer = setTimeout(() => {
+      container._odometerFinalizeTimer = null;
+      if (container.dataset.odometerText === text) rebuildOdometer(container, text);
+    }, ODOMETER_TRANSITION_MS);
+  }
+
   function renderOdometerValue(container, text) {
     const prevText = container.dataset.odometerText;
+
+    if (container._odometerFinalizeTimer) {
+      clearTimeout(container._odometerFinalizeTimer);
+      container._odometerFinalizeTimer = null;
+    }
 
     if (prevText === undefined) {
       rebuildOdometer(container, text);
@@ -335,11 +378,14 @@
     if (prevText === text) return;
 
     const sameLayout = prevText.length === text.length && odometerSignature(prevText) === odometerSignature(text);
+    const maskFree = !hasMaskChar(prevText) && !hasMaskChar(text);
 
     if (sameLayout) {
       updateOdometerInPlace(container, prevText, text);
-    } else if (text.length > prevText.length && !hasMaskChar(prevText) && !hasMaskChar(text)) {
+    } else if (text.length > prevText.length && maskFree) {
       rebuildOdometerGrowth(container, prevText, text);
+    } else if (text.length < prevText.length && maskFree) {
+      rebuildOdometerShrink(container, prevText, text);
     } else {
       rebuildOdometer(container, text);
     }
