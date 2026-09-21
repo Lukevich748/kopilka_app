@@ -28,6 +28,7 @@
     chartGeometry: null,
     amountsHidden: loadHiddenPref(),
     editingId: null,
+    pendingDeleteId: null,
     selectedDate: null,
     viewYear: null,
     viewMonth: null,
@@ -84,6 +85,12 @@
     settingsBackdrop: document.getElementById('settingsBackdrop'),
     settingsCloseBtn: document.getElementById('settingsCloseBtn'),
     currencyToggleList: document.getElementById('currencyToggleList'),
+    deleteConfirmBackdrop: document.getElementById('deleteConfirmBackdrop'),
+    deleteConfirmCloseBtn: document.getElementById('deleteConfirmCloseBtn'),
+    deleteConfirmCancelBtn: document.getElementById('deleteConfirmCancelBtn'),
+    deleteConfirmOkBtn: document.getElementById('deleteConfirmOkBtn'),
+    deleteConfirmAmount: document.getElementById('deleteConfirmAmount'),
+    deleteConfirmDate: document.getElementById('deleteConfirmDate'),
   };
 
   const numberFormatCache = new Map();
@@ -802,7 +809,7 @@
     exitEditMode();
   });
 
-  el.historyList.addEventListener('click', async (e) => {
+  el.historyList.addEventListener('click', (e) => {
     const editBtn = e.target.closest('.item-edit');
     if (editBtn) {
       const id = editBtn.closest('.history-item').dataset.id;
@@ -813,21 +820,57 @@
 
     const deleteBtn = e.target.closest('.item-delete');
     if (!deleteBtn) return;
-    const item = deleteBtn.closest('.history-item');
-    const id = item.dataset.id;
+    const id = deleteBtn.closest('.history-item').dataset.id;
+    const tx = state.transactions.find((t) => t.id === id);
+    if (tx) openDeleteConfirm(tx);
+  });
 
-    item.classList.add('removing');
+  function handleDeleteConfirmKeydown(e) {
+    if (e.key === 'Escape') closeDeleteConfirm();
+  }
+
+  function openDeleteConfirm(tx) {
+    state.pendingDeleteId = tx.id;
+    const c = state.currencyMap.get(tx.currency);
+    const amountText = `${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
+    el.deleteConfirmAmount.textContent = state.amountsHidden ? maskDigits(amountText) : amountText;
+    el.deleteConfirmDate.textContent = formatDate(tx.date);
+    el.deleteConfirmBackdrop.hidden = false;
+    document.addEventListener('keydown', handleDeleteConfirmKeydown);
+  }
+
+  function closeDeleteConfirm() {
+    state.pendingDeleteId = null;
+    el.deleteConfirmBackdrop.hidden = true;
+    document.removeEventListener('keydown', handleDeleteConfirmKeydown);
+  }
+
+  el.deleteConfirmCloseBtn.addEventListener('click', closeDeleteConfirm);
+  el.deleteConfirmCancelBtn.addEventListener('click', closeDeleteConfirm);
+  el.deleteConfirmBackdrop.addEventListener('click', (e) => {
+    if (e.target === el.deleteConfirmBackdrop) closeDeleteConfirm();
+  });
+
+  el.deleteConfirmOkBtn.addEventListener('click', async () => {
+    const id = state.pendingDeleteId;
+    if (!id) return;
+    const item = el.historyList.querySelector(`.history-item[data-id="${id}"]`);
+
+    el.deleteConfirmOkBtn.disabled = true;
     try {
       await api(`/transactions/${id}`, { method: 'DELETE' });
+      closeDeleteConfirm();
       if (id === state.editingId) exitEditMode();
+      if (item) item.classList.add('removing');
       setTimeout(async () => {
         state.transactions = state.transactions.filter((t) => t.id !== id);
         renderHistory();
         await refreshSummary();
       }, 220);
     } catch (err) {
-      item.classList.remove('removing');
       showToast(err.message, 'error');
+    } finally {
+      el.deleteConfirmOkBtn.disabled = false;
     }
   });
 
