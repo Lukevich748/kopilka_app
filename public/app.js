@@ -232,19 +232,27 @@
   function waitForStripsSettled(pending, onSettled) {
     const startedAt = performance.now();
 
-    function isSettled({ strip, target }) {
-      const wrap = strip.parentElement;
-      const emPx = wrap.getBoundingClientRect().height || 1;
-      const targetIndex = ODOMETER_DIGITS.indexOf(target);
-      const targetY = -targetIndex * emPx;
+    // emPx и целевая позиция за время анимации не меняются — считаем их
+    // один раз здесь, а не внутри check(): getBoundingClientRect() форсирует
+    // layout, и повторять это ежекадрово для каждого разряда до самого
+    // конца анимации — лишняя работа без всякой пользы.
+    const gauges = pending.map(({ strip, target }) => {
+      const emPx = strip.parentElement.getBoundingClientRect().height || 1;
+      return {
+        strip,
+        targetY: -ODOMETER_DIGITS.indexOf(target) * emPx,
+        epsilon: emPx * ODOMETER_SETTLE_EM_FRACTION,
+      };
+    });
+
+    function isSettled({ strip, targetY, epsilon }) {
       const matrix = new DOMMatrixReadOnly(getComputedStyle(strip).transform);
-      const remaining = Math.abs(matrix.m42 - targetY);
-      return remaining < emPx * ODOMETER_SETTLE_EM_FRACTION;
+      return Math.abs(matrix.m42 - targetY) < epsilon;
     }
 
     function check() {
       const timedOut = performance.now() - startedAt > ODOMETER_SETTLE_TIMEOUT_MS;
-      if (timedOut || pending.every(isSettled)) {
+      if (timedOut || gauges.every(isSettled)) {
         onSettled();
         return;
       }
@@ -332,59 +340,38 @@
     }
   }
 
-  // Число выросло в разрядах (0 -> 100, 1 000 -> 10 000 и т.п.): выравниваем
-  // по правому краю, чтобы существующие разряды доехали до новых значений,
-  // а новые старшие разряды слева "въезжали" с нуля — как в реальном
-  // механическом одометре, а не просто мгновенно появлялись.
-  function rebuildOdometerGrowth(container, prevText, text) {
+  // Общая раскладка для изменения КОЛИЧЕСТВА разрядов (рост или уменьшение) —
+  // выравниваем по правому краю относительно более ДЛИННОЙ из двух строк:
+  //
+  //  - при росте (0 -> 100, 1 000 -> 10 000)  длиннее НОВОЕ значение:
+  //    существующие разряды доезжают до новых цифр, а новые старшие разряды
+  //    слева "въезжают" с нуля — как в реальном механическом одометре;
+  //  - при уменьшении (100 -> 0, 10 000 -> 1 000) длиннее СТАРОЕ значение:
+  //    держим старое количество разрядов, пока едет анимация, лишние старшие
+  //    разряды слева докручиваются до '0', а по завершении переезда лент их
+  //    тихо убирают из DOM (см. shrinking-ветку ниже) — без видимого скачка.
+  function rebuildOdometerAligned(container, prevText, text, shrinking) {
     const oldChars = prevText.split('');
     const newChars = text.split('');
-    const diff = newChars.length - oldChars.length;
+    const domChars = shrinking ? oldChars : newChars; // раскладка DOM на время самой анимации
+    const otherChars = shrinking ? newChars : oldChars;
+    const diff = domChars.length - otherChars.length;
 
     container.innerHTML = '';
     const pending = [];
 
-    newChars.forEach((ch, i) => {
-      const oldCh = i - diff >= 0 ? oldChars[i - diff] : null;
-      if (/\d/.test(ch)) {
-        const startDigit = oldCh && /\d/.test(oldCh) ? oldCh : '0';
-        const { wrap, strip } = createOdometerDigitAnimatable(startDigit);
-        container.appendChild(wrap);
-        pending.push({ strip, target: ch });
-      } else {
-        container.appendChild(createStaticSpan(ch));
+    domChars.forEach((domCh, i) => {
+      if (!/\d/.test(domCh)) {
+        container.appendChild(createStaticSpan(domCh));
+        return;
       }
-    });
-
-    void container.offsetHeight; // форсируем layout со стартовыми позициями
-    requestAnimationFrame(() => {
-      pending.forEach(({ strip, target }) => setOdometerStripDigit(strip, target));
-    });
-  }
-
-  // Число уменьшилось в разрядах (100 -> 0, 10 000 -> 1 000 и т.п.): пока
-  // едет анимация, держим старое количество разрядов, выравнивая по правому
-  // краю — лишние старшие разряды слева докручиваются до '0', а не исчезают
-  // мгновенно. Когда переезд лент завершён, лишние разряды уже показывают
-  // '0' и их можно тихо убрать из DOM без видимого скачка.
-  function rebuildOdometerShrink(container, prevText, text) {
-    const oldChars = prevText.split('');
-    const newChars = text.split('');
-    const diff = oldChars.length - newChars.length;
-
-    container.innerHTML = '';
-    const pending = [];
-
-    oldChars.forEach((oldCh, i) => {
-      const newCh = i >= diff ? newChars[i - diff] : null;
-      if (/\d/.test(oldCh)) {
-        const target = newCh && /\d/.test(newCh) ? newCh : '0';
-        const { wrap, strip } = createOdometerDigitAnimatable(oldCh);
-        container.appendChild(wrap);
-        pending.push({ strip, target });
-      } else {
-        container.appendChild(createStaticSpan(oldCh));
-      }
+      const otherCh = i >= diff ? otherChars[i - diff] : null;
+      const fallback = otherCh && /\d/.test(otherCh) ? otherCh : '0';
+      const startDigit = shrinking ? domCh : fallback;
+      const targetDigit = shrinking ? fallback : domCh;
+      const { wrap, strip } = createOdometerDigitAnimatable(startDigit);
+      container.appendChild(wrap);
+      pending.push({ strip, target: targetDigit });
     });
 
     void container.offsetHeight; // форсируем layout со стартовыми позициями
@@ -393,10 +380,19 @@
 
     requestAnimationFrame(() => {
       pending.forEach(({ strip, target }) => setOdometerStripDigit(strip, target));
+      if (!shrinking) return;
       waitForStripsSettled(pending, () => {
         if (container._odometerShrinkToken === token) rebuildOdometer(container, text);
       });
     });
+  }
+
+  function rebuildOdometerGrowth(container, prevText, text) {
+    rebuildOdometerAligned(container, prevText, text, false);
+  }
+
+  function rebuildOdometerShrink(container, prevText, text) {
+    rebuildOdometerAligned(container, prevText, text, true);
   }
 
   function renderOdometerValue(container, text) {
