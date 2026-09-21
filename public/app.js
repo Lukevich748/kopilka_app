@@ -29,6 +29,8 @@
     amountsHidden: loadHiddenPref(),
     editingId: null,
     pendingDeleteId: null,
+    totalVisible: true,
+    pendingTotalText: null,
     selectedDate: null,
     viewYear: null,
     viewMonth: null,
@@ -214,18 +216,31 @@
   // которые реально изменились с прошлого рендера.
   const ODOMETER_DIGITS = '0123456789';
 
-  function createOdometerDigit(digitChar) {
-    const wrap = document.createElement('span');
-    wrap.className = 'odometer-digit';
-
+  function buildOdometerStrip(startDigit) {
     const strip = document.createElement('span');
-    strip.className = 'odometer-strip no-anim';
+    strip.className = 'odometer-strip';
     strip.innerHTML = ODOMETER_DIGITS.split('')
       .map((d) => `<span class="odometer-cell">${d}</span>`)
       .join('');
+    setOdometerStripDigit(strip, startDigit);
+    return strip;
+  }
 
+  function createStaticSpan(ch) {
+    const span = document.createElement('span');
+    span.className = 'odometer-static';
+    span.textContent = ch;
+    return span;
+  }
+
+  // Для перерисовки "с нуля", где анимация не нужна вообще (первая отрисовка
+  // при загрузке страницы, переключение маски приватности).
+  function createOdometerDigit(digitChar) {
+    const wrap = document.createElement('span');
+    wrap.className = 'odometer-digit';
+    const strip = buildOdometerStrip(digitChar);
+    strip.classList.add('no-anim');
     wrap.appendChild(strip);
-    setOdometerStripDigit(strip, digitChar);
 
     // Снимаем no-anim на следующий кадр, чтобы первая расстановка не ехала,
     // а все последующие обновления уже анимировались.
@@ -234,6 +249,16 @@
     });
 
     return wrap;
+  }
+
+  // Для роста числа разрядов: лента сразу готова ехать (без no-anim), просто
+  // стартует с startDigit — переезд к целевой цифре запускается отдельно.
+  function createOdometerDigitAnimatable(startDigit) {
+    const wrap = document.createElement('span');
+    wrap.className = 'odometer-digit';
+    const strip = buildOdometerStrip(startDigit);
+    wrap.appendChild(strip);
+    return { wrap, strip };
   }
 
   function setOdometerStripDigit(strip, digitChar) {
@@ -245,36 +270,78 @@
     return text.replace(/\d/g, 'D');
   }
 
+  function hasMaskChar(text) {
+    return text.indexOf('•') !== -1;
+  }
+
+  function updateOdometerInPlace(container, prevText, text) {
+    const children = container.children;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === prevText[i]) continue; // не изменилось — не трогаем, без анимации
+      if (/\d/.test(ch)) {
+        setOdometerStripDigit(children[i].querySelector('.odometer-strip'), ch);
+      } else {
+        children[i].textContent = ch;
+      }
+    }
+  }
+
+  function rebuildOdometer(container, text) {
+    container.innerHTML = '';
+    for (const ch of text) {
+      container.appendChild(/\d/.test(ch) ? createOdometerDigit(ch) : createStaticSpan(ch));
+    }
+  }
+
+  // Число выросло в разрядах (0 -> 100, 1 000 -> 10 000 и т.п.): выравниваем
+  // по правому краю, чтобы существующие разряды доехали до новых значений,
+  // а новые старшие разряды слева "въезжали" с нуля — как в реальном
+  // механическом одометре, а не просто мгновенно появлялись.
+  function rebuildOdometerGrowth(container, prevText, text) {
+    const oldChars = prevText.split('');
+    const newChars = text.split('');
+    const diff = newChars.length - oldChars.length;
+
+    container.innerHTML = '';
+    const pending = [];
+
+    newChars.forEach((ch, i) => {
+      const oldCh = i - diff >= 0 ? oldChars[i - diff] : null;
+      if (/\d/.test(ch)) {
+        const startDigit = oldCh && /\d/.test(oldCh) ? oldCh : '0';
+        const { wrap, strip } = createOdometerDigitAnimatable(startDigit);
+        container.appendChild(wrap);
+        pending.push({ strip, target: ch });
+      } else {
+        container.appendChild(createStaticSpan(ch));
+      }
+    });
+
+    void container.offsetHeight; // форсируем layout со стартовыми позициями
+    requestAnimationFrame(() => {
+      pending.forEach(({ strip, target }) => setOdometerStripDigit(strip, target));
+    });
+  }
+
   function renderOdometerValue(container, text) {
     const prevText = container.dataset.odometerText;
-    const canUpdateInPlace =
-      prevText !== undefined &&
-      odometerSignature(prevText) === odometerSignature(text) &&
-      container.children.length === text.length;
 
-    if (canUpdateInPlace) {
-      const children = container.children;
-      for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (ch === prevText[i]) continue; // не изменилось — не трогаем, без анимации
-        if (/\d/.test(ch)) {
-          setOdometerStripDigit(children[i].querySelector('.odometer-strip'), ch);
-        } else {
-          children[i].textContent = ch;
-        }
-      }
+    if (prevText === undefined) {
+      rebuildOdometer(container, text);
+      container.dataset.odometerText = text;
+      return;
+    }
+    if (prevText === text) return;
+
+    const sameLayout = prevText.length === text.length && odometerSignature(prevText) === odometerSignature(text);
+
+    if (sameLayout) {
+      updateOdometerInPlace(container, prevText, text);
+    } else if (text.length > prevText.length && !hasMaskChar(prevText) && !hasMaskChar(text)) {
+      rebuildOdometerGrowth(container, prevText, text);
     } else {
-      container.innerHTML = '';
-      for (const ch of text) {
-        if (/\d/.test(ch)) {
-          container.appendChild(createOdometerDigit(ch));
-        } else {
-          const span = document.createElement('span');
-          span.className = 'odometer-static';
-          span.textContent = ch;
-          container.appendChild(span);
-        }
-      }
+      rebuildOdometer(container, text);
     }
 
     container.dataset.odometerText = text;
@@ -404,7 +471,17 @@
 
     const currency = state.currencyMap.get(summary.baseCurrency);
     const totalText = formatNumber(summary.grandTotal);
-    renderOdometerValue(el.grandTotalValue, state.amountsHidden ? maskDigits(totalText) : totalText);
+    const displayText = state.amountsHidden ? maskDigits(totalText) : totalText;
+
+    // Пока сумма не появилась на экране (проматали ниже — к форме, истории),
+    // не проигрываем "барабан" вслепую — просто запоминаем целевое значение
+    // и покажем его с анимацией, когда пользователь долистает до суммы.
+    if (state.totalVisible) {
+      renderOdometerValue(el.grandTotalValue, displayText);
+      state.pendingTotalText = null;
+    } else {
+      state.pendingTotalText = displayText;
+    }
     el.grandTotalCurrency.textContent = currency ? `${currency.symbol} ${currency.code}` : summary.baseCurrency;
 
     el.txCountHint.textContent = summary.transactionsCount
@@ -735,7 +812,7 @@
     el.formError.textContent = '';
     renderHistory();
     el.formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    el.amountInput.focus();
+    el.amountInput.focus({ preventScroll: true });
   }
 
   function exitEditMode() {
@@ -761,7 +838,7 @@
 
     if (!amount || amount <= 0) {
       el.formError.textContent = 'Введите сумму больше нуля';
-      el.amountInput.focus();
+      el.amountInput.focus({ preventScroll: true });
       return;
     }
 
@@ -794,7 +871,7 @@
         showToast(`Добавлено ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
 
         el.amountInput.value = '';
-        el.amountInput.focus();
+        el.amountInput.focus({ preventScroll: true });
       }
     } catch (err) {
       el.formError.textContent = err.message;
@@ -1052,6 +1129,20 @@
       resizeFrame = requestAnimationFrame(() => renderChart(state.chartData));
     });
     chartResizeObserver.observe(el.chartWrap);
+  }
+
+  if (window.IntersectionObserver) {
+    const totalVisibilityObserver = new IntersectionObserver(
+      (entries) => {
+        state.totalVisible = entries[entries.length - 1].isIntersecting;
+        if (state.totalVisible && state.pendingTotalText !== null) {
+          renderOdometerValue(el.grandTotalValue, state.pendingTotalText);
+          state.pendingTotalText = null;
+        }
+      },
+      { threshold: 0.6 }
+    );
+    totalVisibilityObserver.observe(el.grandTotalValue);
   }
 
   loadAll().catch((err) => {
