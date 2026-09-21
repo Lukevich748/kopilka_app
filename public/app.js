@@ -106,6 +106,7 @@
     chartCrosshair: document.getElementById('chartCrosshair'),
     chartHoverDot: document.getElementById('chartHoverDot'),
     chartEndDot: document.getElementById('chartEndDot'),
+    chartPulseDot: document.getElementById('chartPulseDot'),
     chartEndLabel: document.getElementById('chartEndLabel'),
     chartXLabels: document.getElementById('chartXLabels'),
     chartTooltip: document.getElementById('chartTooltip'),
@@ -829,6 +830,44 @@
     renderChart(data);
   }
 
+  // Пробегает светящейся точкой по всей линии графика слева направо —
+  // видимый знак, что цифры только что обновились. Токен нужен на случай,
+  // если пользователь успевает сохранить несколько изменений подряд:
+  // предыдущий, ещё не доигравший пробег просто обрывается, не мешая
+  // новому и не оставляя точку "зависшей" на старом месте.
+  let chartPulseToken = 0;
+  const CHART_PULSE_DURATION_MS = 1100;
+
+  function easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+  }
+
+  function pulseChartLine() {
+    if (!state.chartGeometry) return;
+    const totalLength = el.chartLine.getTotalLength();
+    if (!totalLength) return;
+
+    const token = ++chartPulseToken;
+    const dot = el.chartPulseDot;
+    const startedAt = performance.now();
+    dot.setAttribute('visibility', 'visible');
+    dot.style.opacity = '1';
+
+    function step(now) {
+      if (token !== chartPulseToken) return;
+      const t = Math.min(1, (now - startedAt) / CHART_PULSE_DURATION_MS);
+      const point = el.chartLine.getPointAtLength(easeInOutQuad(t) * totalLength);
+      dot.setAttribute('transform', `translate(${point.x.toFixed(2)}, ${point.y.toFixed(2)})`);
+      if (t > 0.85) dot.style.opacity = String(1 - (t - 0.85) / 0.15);
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        dot.setAttribute('visibility', 'hidden');
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
   function svgCoordsFromEvent(evt) {
     const rect = el.chartSvg.getBoundingClientRect();
     const viewBox = el.chartSvg.viewBox.baseVal;
@@ -1114,6 +1153,7 @@
     const [summary, chart] = await Promise.all([api('/summary'), api('/history-chart')]);
     renderSummary(summary);
     renderChart(chart);
+    pulseChartLine();
   }
 
   async function refreshTransactions() {
