@@ -104,6 +104,7 @@
     chartArea: document.getElementById('chartArea'),
     chartLine: document.getElementById('chartLine'),
     chartCrosshair: document.getElementById('chartCrosshair'),
+    chartHoverPulseRing: document.getElementById('chartHoverPulseRing'),
     chartHoverDot: document.getElementById('chartHoverDot'),
     chartEndDot: document.getElementById('chartEndDot'),
     chartEndLabel: document.getElementById('chartEndLabel'),
@@ -868,6 +869,10 @@
     el.chartHoverDot.setAttribute('cy', py.toFixed(2));
     el.chartHoverDot.setAttribute('visibility', 'visible');
 
+    el.chartHoverPulseRing.setAttribute('cx', px.toFixed(2));
+    el.chartHoverPulseRing.setAttribute('cy', py.toFixed(2));
+    el.chartHoverPulseRing.setAttribute('visibility', 'visible');
+
     const pxPixels = (px / viewBox.width) * rect.width;
     const pyPixels = (py / viewBox.height) * rect.height;
     el.chartTooltip.style.left = `${pxPixels}px`;
@@ -889,6 +894,7 @@
 
   function handleChartPointerLeave() {
     el.chartCrosshair.setAttribute('visibility', 'hidden');
+    el.chartHoverPulseRing.setAttribute('visibility', 'hidden');
     el.chartHoverDot.setAttribute('visibility', 'hidden');
     el.chartTooltip.hidden = true;
   }
