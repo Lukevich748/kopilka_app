@@ -464,6 +464,13 @@ body { overflow-x: hidden; }
 
 .field input[type="date"] { color-scheme: dark; }
 
+#amountInput {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;

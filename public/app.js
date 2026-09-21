@@ -86,6 +86,88 @@
     return str.replace(/\d/g, '•');
   }
 
+  // Разбивает целую часть по разрядам пробелами прямо во время ввода:
+  // "1000000" -> "1 000 000". Разделитель дробной части (запятая или
+  // точка) сохраняется таким, каким его набрал пользователь.
+  function formatAmountString(raw) {
+    let value = raw.replace(/[^\d.,]/g, '');
+
+    const sepIndex = value.search(/[.,]/);
+    let integerPart = value;
+    let sep = '';
+    let decimalPart = '';
+
+    if (sepIndex !== -1) {
+      sep = value[sepIndex];
+      integerPart = value.slice(0, sepIndex);
+      decimalPart = value.slice(sepIndex + 1).replace(/[.,]/g, '').slice(0, 2);
+    }
+
+    integerPart = integerPart.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '');
+    const grouped = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+    return sep ? `${grouped}${sep}${decimalPart}` : grouped;
+  }
+
+  function countDigits(str) {
+    return (str.match(/\d/g) || []).length;
+  }
+
+  function cursorPositionForDigitCount(str, targetDigitCount) {
+    if (targetDigitCount <= 0) return 0;
+    let count = 0;
+    for (let i = 0; i < str.length; i++) {
+      if (/\d/.test(str[i])) {
+        count += 1;
+        if (count === targetDigitCount) return i + 1;
+      }
+    }
+    return str.length;
+  }
+
+  // Как cursorPositionForDigitCount, но считает цифры только после
+  // разделителя дробной части — иначе курсор, поставленный сразу после
+  // запятой/точки, "откатывался" назад в целую часть.
+  function cursorPositionAfterSeparator(str, decimalDigitsCount) {
+    const sepIdx = str.search(/[.,]/);
+    if (sepIdx === -1) return str.length;
+    if (decimalDigitsCount <= 0) return sepIdx + 1;
+
+    let count = 0;
+    for (let i = sepIdx + 1; i < str.length; i++) {
+      if (/\d/.test(str[i])) {
+        count += 1;
+        if (count === decimalDigitsCount) return i + 1;
+      }
+    }
+    return str.length;
+  }
+
+  function reformatAmountInput(inputEl) {
+    const prevValue = inputEl.value;
+    const prevCursor = inputEl.selectionStart ?? prevValue.length;
+    const beforeCursor = prevValue.slice(0, prevCursor);
+    const sepPos = beforeCursor.search(/[.,]/);
+    const cursorAfterSep = sepPos !== -1;
+    const digitsBeforeCursor = cursorAfterSep
+      ? countDigits(beforeCursor.slice(sepPos + 1))
+      : countDigits(beforeCursor);
+
+    const formatted = formatAmountString(prevValue);
+    inputEl.value = formatted;
+
+    const newCursor = cursorAfterSep
+      ? cursorPositionAfterSeparator(formatted, digitsBeforeCursor)
+      : cursorPositionForDigitCount(formatted, digitsBeforeCursor);
+    inputEl.setSelectionRange(newCursor, newCursor);
+  }
+
+  // Из "1 000 000,50" (или с точкой) получаем обычное число 1000000.5
+  function parseAmountInput(str) {
+    const normalized = String(str).replace(/\s/g, '').replace(',', '.');
+    return parseFloat(normalized);
+  }
+
   async function api(path, options) {
     const res = await fetch(`/api${path}`, {
       headers: { 'Content-Type': 'application/json' },
@@ -254,7 +336,7 @@
 
   function enterEditMode(tx) {
     state.editingId = tx.id;
-    el.amountInput.value = tx.amount;
+    el.amountInput.value = formatAmountString(String(tx.amount));
     el.currencySelect.value = tx.currency;
     el.dateInput.value = tx.date;
     el.formTitle.textContent = 'Редактировать запись';
@@ -281,7 +363,7 @@
     e.preventDefault();
     el.formError.textContent = '';
 
-    const amount = parseFloat(el.amountInput.value);
+    const amount = parseAmountInput(el.amountInput.value);
     const currency = el.currencySelect.value;
     const date = el.dateInput.value || todayISO();
 
@@ -411,6 +493,10 @@
   });
 
   updateVisibilityToggleUI();
+
+  el.amountInput.addEventListener('input', () => {
+    reformatAmountInput(el.amountInput);
+  });
 
   el.dateInput.value = todayISO();
   el.dateInput.max = todayISO();
