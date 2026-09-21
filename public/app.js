@@ -1,9 +1,29 @@
 (() => {
+  const HIDDEN_PREF_KEY = 'kopilka:amountsHidden';
+
+  function loadHiddenPref() {
+    try {
+      return localStorage.getItem(HIDDEN_PREF_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function saveHiddenPref(hidden) {
+    try {
+      localStorage.setItem(HIDDEN_PREF_KEY, hidden ? '1' : '0');
+    } catch {
+      /* приватный режим браузера — просто не сохраняем предпочтение */
+    }
+  }
+
   const state = {
     currencies: [],
     currencyMap: new Map(),
     settings: { baseCurrency: 'USD' },
     transactions: [],
+    summary: null,
+    amountsHidden: loadHiddenPref(),
   };
 
   const el = {
@@ -25,6 +45,7 @@
     ratesList: document.getElementById('ratesList'),
     ratesUpdated: document.getElementById('ratesUpdated'),
     ratesRefreshBtn: document.getElementById('ratesRefreshBtn'),
+    visibilityToggle: document.getElementById('visibilityToggle'),
   };
 
   const numberFormatCache = new Map();
@@ -52,6 +73,12 @@
 
   function todayISO() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  // Прячем только цифры, сохраняя пробелы/разделители — силуэт числа
+  // остаётся, а значение прочитать нельзя.
+  function maskDigits(str) {
+    return str.replace(/\d/g, '•');
   }
 
   async function api(path, options) {
@@ -88,8 +115,11 @@
   }
 
   function renderSummary(summary) {
+    state.summary = summary;
+
     const currency = state.currencyMap.get(summary.baseCurrency);
-    el.grandTotalValue.textContent = formatNumber(summary.grandTotal);
+    const totalText = formatNumber(summary.grandTotal);
+    el.grandTotalValue.textContent = state.amountsHidden ? maskDigits(totalText) : totalText;
     el.grandTotalCurrency.textContent = currency ? `${currency.symbol} ${currency.code}` : summary.baseCurrency;
 
     el.txCountHint.textContent = summary.transactionsCount
@@ -102,9 +132,10 @@
           .sort((a, b) => b[1] - a[1])
           .map(([code, amount]) => {
             const c = state.currencyMap.get(code);
+            const amountText = `${formatNumber(amount)} ${c ? c.symbol : ''}`;
             return `<div class="chip">
               <span class="chip-flag">${c ? c.flag : ''}</span>
-              <span class="chip-amount">${formatNumber(amount)} ${c ? c.symbol : ''}</span>
+              <span class="chip-amount">${state.amountsHidden ? maskDigits(amountText) : amountText}</span>
               <span class="chip-code">${code}</span>
             </div>`;
           })
@@ -164,11 +195,12 @@
     el.historyList.innerHTML = state.transactions
       .map((tx) => {
         const c = state.currencyMap.get(tx.currency);
+        const amountText = `+${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
         return `<div class="history-item" data-id="${tx.id}">
           <div class="item-flag">${c ? c.flag : '💰'}</div>
           <div class="item-body">
             <div class="item-top">
-              <span>+${formatNumber(tx.amount)} ${c ? c.symbol : ''}</span>
+              <span>${state.amountsHidden ? maskDigits(amountText) : amountText}</span>
               <span class="item-currency-code">${tx.currency}</span>
             </div>
             <div class="item-meta">${formatDate(tx.date)}</div>
@@ -295,6 +327,23 @@
       el.ratesRefreshBtn.classList.remove('spinning');
     }
   });
+
+  function updateVisibilityToggleUI() {
+    el.visibilityToggle.setAttribute('aria-pressed', state.amountsHidden ? 'true' : 'false');
+    const label = state.amountsHidden ? 'Показать суммы' : 'Скрыть суммы';
+    el.visibilityToggle.title = label;
+    el.visibilityToggle.setAttribute('aria-label', label);
+  }
+
+  el.visibilityToggle.addEventListener('click', () => {
+    state.amountsHidden = !state.amountsHidden;
+    saveHiddenPref(state.amountsHidden);
+    updateVisibilityToggleUI();
+    if (state.summary) renderSummary(state.summary);
+    renderHistory();
+  });
+
+  updateVisibilityToggleUI();
 
   el.dateInput.value = todayISO();
   el.dateInput.max = todayISO();
