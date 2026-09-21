@@ -850,6 +850,12 @@
   }
 
   function showEmptyHistoryState() {
+    // На случай, если плейсхолдер до этого использовался в ручном
+    // crossfade-переходе (collapseHistoryListToEmptyState) и остался с
+    // зафиксированными инлайн-style opacity/animation — сбрасываем их,
+    // чтобы здесь снова сработала обычная CSS-анимация появления "rise".
+    el.emptyState.style.opacity = '';
+    el.emptyState.style.animation = '';
     el.historyList.innerHTML = '';
     el.historyList.appendChild(el.emptyState);
   }
@@ -902,12 +908,6 @@
     el.historyList.appendChild(el.emptyState);
     el.emptyState.style.opacity = '0';
     const endHeight = el.historyList.scrollHeight;
-    void el.historyList.offsetHeight;
-
-    el.historyList.style.transition = 'height 0.32s ease';
-    el.emptyState.style.transition = 'opacity 0.3s ease 0.05s';
-    el.historyList.style.height = `${endHeight}px`;
-    el.emptyState.style.opacity = '1';
 
     let finished = false;
     const cleanup = () => {
@@ -917,11 +917,30 @@
       el.historyList.style.height = '';
       el.historyList.style.overflow = '';
       el.emptyState.style.transition = '';
-      el.emptyState.style.opacity = '';
-      el.emptyState.style.animation = '';
+      // opacity/animation плейсхолдера НЕ сбрасываем: он уже проявлен (opacity:1),
+      // а сброс animation вернул бы CSS-анимацию "rise" и она переиграла бы
+      // проявление заново поверх уже показанного плейсхолдера. showEmptyHistoryState()
+      // сама сбросит эти инлайн-стили, когда плейсхолдер понадобится с нуля.
     };
+
+    // Двойной rAF — тот же приём, что и в анимации "барабана" суммы: одного
+    // forced reflow не всегда достаточно, чтобы браузер гарантированно
+    // зафиксировал стартовое состояние отдельным кадром перед стартом
+    // transition. Без этого начальная и целевая высота могут схлопнуться
+    // в один кадр — тогда вместо плавного роста получается мгновенный скачок
+    // с паузой перед проявлением плейсхолдера (это и происходило раньше).
+    requestAnimationFrame(() => {
+      void el.historyList.offsetHeight;
+      el.historyList.style.transition = 'height 0.32s ease';
+      el.emptyState.style.transition = 'opacity 0.3s ease 0.05s';
+      requestAnimationFrame(() => {
+        el.historyList.style.height = `${endHeight}px`;
+        el.emptyState.style.opacity = '1';
+      });
+    });
+
     el.historyList.addEventListener('transitionend', cleanup, { once: true });
-    setTimeout(cleanup, 420); // страховка, если transitionend почему-то не пришёл
+    setTimeout(cleanup, 500); // страховка, если transitionend почему-то не пришёл
   }
 
   // Плавно убирает одну запись: схлопывает её высоту/отступы вместе с fade,
