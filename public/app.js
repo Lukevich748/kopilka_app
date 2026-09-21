@@ -87,6 +87,7 @@
     historyCount: document.getElementById('historyCount'),
     emptyState: document.getElementById('emptyState'),
     toast: document.getElementById('toast'),
+    ratesPanel: document.querySelector('.rates-panel'),
     ratesFlip: document.getElementById('ratesFlip'),
     ratesFaceFront: document.querySelector('.rates-face-front'),
     ratesFaceBack: document.querySelector('.rates-face-back'),
@@ -677,14 +678,26 @@
   // применения transform — а значит не "плывут", пока ещё доигрывают
   // входные CSS-анимации карточки (.summary-card/.rates-panel), в отличие
   // от первой версии этой функции.
+  function measureFaceHeight(face) {
+    const lastChild = face.lastElementChild;
+    if (!lastChild) return 0;
+    const paddingBottom = parseFloat(getComputedStyle(face).paddingBottom) || 0;
+    return Math.ceil(lastChild.offsetTop + lastChild.offsetHeight + paddingBottom);
+  }
+
+  // .rates-flip всегда точно по размеру видимой стороны (без пустого
+  // отступа снизу на более короткой), а вот .rates-panel — "слот" вокруг
+  // неё — держим равным большей из двух сторон, иначе вся строка
+  // .summary-card уменьшалась бы вместе с карточкой при перевороте на
+  // более короткую сторону (обе стороны при этом лежат в DOM всегда,
+  // измерить можно независимо от того, какая сейчас видна).
   function syncRatesFlipHeight() {
     if (!el.ratesFlip) return;
+    const frontH = measureFaceHeight(el.ratesFaceFront);
+    const backH = measureFaceHeight(el.ratesFaceBack);
     const flipped = el.ratesFlip.classList.contains('flipped');
-    const face = flipped ? el.ratesFaceBack : el.ratesFaceFront;
-    const lastChild = face.lastElementChild;
-    if (!lastChild) return;
-    const paddingBottom = parseFloat(getComputedStyle(face).paddingBottom) || 0;
-    el.ratesFlip.style.height = `${Math.ceil(lastChild.offsetTop + lastChild.offsetHeight + paddingBottom)}px`;
+    el.ratesFlip.style.height = `${flipped ? backH : frontH}px`;
+    el.ratesPanel.style.height = `${Math.max(frontH, backH)}px`;
   }
 
   function renderRates(snapshot) {

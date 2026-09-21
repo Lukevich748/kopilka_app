@@ -491,8 +491,16 @@ body { overflow-x: hidden; }
 }
 
 /* ---------- Rates panel (флип-карточка курсов) ---------- */
+/* .rates-panel — это "слот" для карточки, JS держит его высоту равной
+   большей из двух сторон (см. syncRatesFlipHeight), чтобы вся строка
+   .summary-card не уменьшалась при перевороте на более короткую сторону.
+   Сама .rates-flip внутри всегда точно по размеру видимой стороны и
+   центрируется в этом слоте по вертикали. */
 .rates-panel {
   flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   perspective: 1400px;
   animation: pop 0.4s 0.15s ease both;
 }
