@@ -40,6 +40,46 @@ function round2(value) {
   return Math.round(value * 100) / 100;
 }
 
+// Кумулятивная сумма по месяцам в базовой валюте — для графика динамики.
+function computeMonthlyHistory(db) {
+  const baseCurrency = db.settings.baseCurrency;
+  if (db.transactions.length === 0) {
+    return { baseCurrency, points: [] };
+  }
+
+  const addedByMonth = new Map();
+  for (const tx of db.transactions) {
+    const converted = rates.convert(tx.amount, tx.currency, baseCurrency);
+    if (converted === null) continue;
+    const month = tx.date.slice(0, 7); // 'YYYY-MM'
+    addedByMonth.set(month, (addedByMonth.get(month) || 0) + converted);
+  }
+
+  const months = [...addedByMonth.keys()].sort();
+  const nowMonth = new Date().toISOString().slice(0, 7);
+  const lastMonth = months[months.length - 1] > nowMonth ? months[months.length - 1] : nowMonth;
+
+  const points = [];
+  let [year, month] = months[0].split('-').map(Number);
+  const [lastYear, lastMonthNum] = lastMonth.split('-').map(Number);
+  let running = 0;
+
+  while (year < lastYear || (year === lastYear && month <= lastMonthNum)) {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    const added = addedByMonth.get(key) || 0;
+    running += added;
+    points.push({ month: key, total: round2(running), added: round2(added) });
+
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return { baseCurrency, points };
+}
+
 // --- Справочник валют ---
 app.get('/api/currencies', (req, res) => {
   res.json(CURRENCIES);
@@ -131,6 +171,12 @@ app.delete('/api/transactions/:id', async (req, res) => {
 app.get('/api/summary', (req, res) => {
   const db = readDb();
   res.json(computeSummary(db));
+});
+
+// --- График динамики (накопления по месяцам) ---
+app.get('/api/history-chart', (req, res) => {
+  const db = readDb();
+  res.json(computeMonthlyHistory(db));
 });
 
 // --- Курсы валют ---

@@ -23,6 +23,8 @@
     settings: { baseCurrency: 'USD' },
     transactions: [],
     summary: null,
+    chartData: null,
+    chartGeometry: null,
     amountsHidden: loadHiddenPref(),
     editingId: null,
     selectedDate: null,
@@ -62,6 +64,21 @@
     ratesUpdated: document.getElementById('ratesUpdated'),
     ratesRefreshBtn: document.getElementById('ratesRefreshBtn'),
     visibilityToggle: document.getElementById('visibilityToggle'),
+    chartWrap: document.getElementById('chartWrap'),
+    chartSvg: document.getElementById('chartSvg'),
+    chartGrid: document.getElementById('chartGrid'),
+    chartArea: document.getElementById('chartArea'),
+    chartLine: document.getElementById('chartLine'),
+    chartCrosshair: document.getElementById('chartCrosshair'),
+    chartHoverDot: document.getElementById('chartHoverDot'),
+    chartEndDot: document.getElementById('chartEndDot'),
+    chartEndLabel: document.getElementById('chartEndLabel'),
+    chartXLabels: document.getElementById('chartXLabels'),
+    chartTooltip: document.getElementById('chartTooltip'),
+    chartTooltipMonth: document.getElementById('chartTooltipMonth'),
+    chartTooltipTotal: document.getElementById('chartTooltipTotal'),
+    chartTooltipAdded: document.getElementById('chartTooltipAdded'),
+    chartEmpty: document.getElementById('chartEmpty'),
   };
 
   const numberFormatCache = new Map();
@@ -91,6 +108,12 @@
     return new Date().toISOString().slice(0, 10);
   }
 
+  // CSS text-transform:capitalize would also uppercase the trailing "г." in
+  // "сентябрь 2026 г." — capitalize just the first letter instead.
+  function capitalizeFirst(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
   function isoFromParts(year, month, day) {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
@@ -103,7 +126,7 @@
     const title = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(
       new Date(state.viewYear, state.viewMonth, 1)
     );
-    el.datePickerTitle.textContent = title;
+    el.datePickerTitle.textContent = capitalizeFirst(title);
 
     const jsWeekday = new Date(state.viewYear, state.viewMonth, 1).getDay();
     const leadingCount = (jsWeekday + 6) % 7; // 0=Пн ... 6=Вс
@@ -357,6 +380,172 @@
     return snapshot;
   }
 
+  // ---------- Chart (динамика накоплений по месяцам) ----------
+  const CHART_W = 640;
+  const CHART_H = 240;
+  const CHART_MARGIN = { left: 50, right: 16, top: 20, bottom: 28 };
+
+  function niceCeil(value) {
+    if (value <= 0) return 100;
+    const exponent = Math.floor(Math.log10(value));
+    const magnitude = Math.pow(10, exponent);
+    const fraction = value / magnitude;
+    let niceFraction;
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+    return niceFraction * magnitude;
+  }
+
+  function monthLabel(monthKey, { short } = {}) {
+    const [y, m] = monthKey.split('-').map(Number);
+    const d = new Date(y, m - 1, 1);
+    const text = new Intl.DateTimeFormat('ru-RU', short ? { month: 'short' } : { month: 'long', year: 'numeric' }).format(d);
+    return short ? text : capitalizeFirst(text);
+  }
+
+  function renderChart(data) {
+    state.chartData = data;
+    const points = data.points;
+
+    if (points.length < 2) {
+      state.chartGeometry = null;
+      el.chartWrap.hidden = true;
+      el.chartEmpty.hidden = false;
+      return;
+    }
+    el.chartWrap.hidden = false;
+    el.chartEmpty.hidden = true;
+
+    const currency = state.currencyMap.get(data.baseCurrency);
+    const symbol = currency ? currency.symbol : '';
+
+    const { left, right, top, bottom } = CHART_MARGIN;
+    const plotLeft = left;
+    const plotRight = CHART_W - right;
+    const plotTop = top;
+    const plotBottom = CHART_H - bottom;
+    const plotWidth = plotRight - plotLeft;
+    const plotHeight = plotBottom - plotTop;
+
+    const maxTotal = Math.max(...points.map((p) => p.total), 0);
+    const yMax = niceCeil((maxTotal || 100) * 1.08);
+
+    const xAt = (i) => plotLeft + (i / (points.length - 1)) * plotWidth;
+    const yAt = (v) => plotBottom - (v / yMax) * plotHeight;
+
+    state.chartGeometry = { points, xAt, yAt, plotTop, plotBottom, symbol };
+
+    const tickFractions = [0, 0.5, 1];
+    el.chartGrid.innerHTML = tickFractions
+      .map((f) => {
+        const y = plotBottom - f * plotHeight;
+        const valueText = formatNumber(f * yMax);
+        const label = state.amountsHidden ? maskDigits(valueText) : valueText;
+        return `<line class="chart-gridline" x1="${plotLeft}" y1="${y.toFixed(2)}" x2="${plotRight}" y2="${y.toFixed(2)}"></line>
+          <text class="chart-tick-label" x="${plotLeft - 8}" y="${(y + 4).toFixed(2)}" text-anchor="end">${label}</text>`;
+      })
+      .join('');
+
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(p.total).toFixed(2)}`).join(' ');
+    el.chartLine.setAttribute('d', linePath);
+    const areaPath = `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${plotBottom} L ${xAt(0).toFixed(2)} ${plotBottom} Z`;
+    el.chartArea.setAttribute('d', areaPath);
+
+    const lastIndex = points.length - 1;
+    const lastX = xAt(lastIndex);
+    const lastY = yAt(points[lastIndex].total);
+    el.chartEndDot.setAttribute('cx', lastX.toFixed(2));
+    el.chartEndDot.setAttribute('cy', lastY.toFixed(2));
+
+    const endValueText = formatNumber(points[lastIndex].total);
+    el.chartEndLabel.textContent = `${state.amountsHidden ? maskDigits(endValueText) : endValueText} ${symbol}`;
+    el.chartEndLabel.setAttribute('x', (lastX - 8).toFixed(2));
+    el.chartEndLabel.setAttribute('y', Math.max(lastY - 12, 12).toFixed(2));
+
+    const maxLabels = 6;
+    const step = Math.max(1, Math.ceil(points.length / maxLabels));
+    el.chartXLabels.innerHTML = points
+      .map((p, i) => {
+        if (i % step !== 0 && i !== points.length - 1) return '';
+        return `<text class="chart-x-label" x="${xAt(i).toFixed(2)}" y="${CHART_H - 8}">${monthLabel(p.month, { short: true })}</text>`;
+      })
+      .join('');
+  }
+
+  async function refreshChart() {
+    const data = await api('/history-chart');
+    renderChart(data);
+  }
+
+  function svgCoordsFromEvent(evt) {
+    const rect = el.chartSvg.getBoundingClientRect();
+    const viewBox = el.chartSvg.viewBox.baseVal;
+    return {
+      x: ((evt.clientX - rect.left) / rect.width) * viewBox.width,
+      rect,
+      viewBox,
+    };
+  }
+
+  function handleChartPointerMove(evt) {
+    if (!state.chartGeometry) return;
+    const { x, rect, viewBox } = svgCoordsFromEvent(evt);
+    const { points, xAt, yAt, plotTop, plotBottom, symbol } = state.chartGeometry;
+
+    let nearest = 0;
+    let minDist = Infinity;
+    points.forEach((_, i) => {
+      const dist = Math.abs(xAt(i) - x);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = i;
+      }
+    });
+
+    const p = points[nearest];
+    const px = xAt(nearest);
+    const py = yAt(p.total);
+
+    el.chartCrosshair.setAttribute('x1', px.toFixed(2));
+    el.chartCrosshair.setAttribute('x2', px.toFixed(2));
+    el.chartCrosshair.setAttribute('y1', plotTop);
+    el.chartCrosshair.setAttribute('y2', plotBottom);
+    el.chartCrosshair.setAttribute('visibility', 'visible');
+
+    el.chartHoverDot.setAttribute('cx', px.toFixed(2));
+    el.chartHoverDot.setAttribute('cy', py.toFixed(2));
+    el.chartHoverDot.setAttribute('visibility', 'visible');
+
+    const pxPixels = (px / viewBox.width) * rect.width;
+    const pyPixels = (py / viewBox.height) * rect.height;
+    el.chartTooltip.style.left = `${pxPixels}px`;
+    el.chartTooltip.style.top = `${Math.max(pyPixels - 10, 10)}px`;
+    el.chartTooltip.hidden = false;
+
+    el.chartTooltipMonth.textContent = monthLabel(p.month);
+    const totalText = formatNumber(p.total);
+    el.chartTooltipTotal.textContent = `${state.amountsHidden ? maskDigits(totalText) : totalText} ${symbol}`;
+
+    if (p.added > 0) {
+      const addedText = formatNumber(p.added);
+      el.chartTooltipAdded.textContent = `+${state.amountsHidden ? maskDigits(addedText) : addedText} ${symbol} за месяц`;
+      el.chartTooltipAdded.hidden = false;
+    } else {
+      el.chartTooltipAdded.hidden = true;
+    }
+  }
+
+  function handleChartPointerLeave() {
+    el.chartCrosshair.setAttribute('visibility', 'hidden');
+    el.chartHoverDot.setAttribute('visibility', 'hidden');
+    el.chartTooltip.hidden = true;
+  }
+
+  el.chartSvg.addEventListener('pointermove', handleChartPointerMove);
+  el.chartSvg.addEventListener('pointerleave', handleChartPointerLeave);
+
   function renderHistory() {
     el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
 
@@ -392,12 +581,13 @@
   }
 
   async function loadAll() {
-    const [currencies, settings, transactions, summary, rates] = await Promise.all([
+    const [currencies, settings, transactions, summary, rates, chart] = await Promise.all([
       api('/currencies'),
       api('/settings'),
       api('/transactions'),
       api('/summary'),
       api('/rates'),
+      api('/history-chart'),
     ]);
 
     state.currencies = currencies;
@@ -409,11 +599,13 @@
     renderHistory();
     renderSummary(summary);
     renderRates(rates);
+    renderChart(chart);
   }
 
   async function refreshSummary() {
-    const summary = await api('/summary');
+    const [summary, chart] = await Promise.all([api('/summary'), api('/history-chart')]);
     renderSummary(summary);
+    renderChart(chart);
   }
 
   async function refreshTransactions() {
@@ -578,6 +770,7 @@
     saveHiddenPref(state.amountsHidden);
     updateVisibilityToggleUI();
     if (state.summary) renderSummary(state.summary);
+    if (state.chartData) renderChart(state.chartData);
     renderHistory();
   });
 
