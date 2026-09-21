@@ -724,26 +724,6 @@ body { overflow-x: hidden; }
   font-variant-numeric: tabular-nums;
 }
 
-/* Точка под курсором на графике светится и пускает импульсное кольцо —
-   позиция обеих обновляется в handleChartPointerMove, а сам "пинг"
-   крутится непрерывно, пока точка видима (см. .chart-hover-pulse-ring). */
-.chart-hover-dot {
-  filter: drop-shadow(0 0 5px var(--accent-a));
-}
-
-.chart-hover-pulse-ring {
-  fill: none;
-  stroke: var(--accent-a);
-  stroke-width: 2;
-  pointer-events: none;
-  animation: chart-hover-pulse 1.1s ease-out infinite;
-}
-
-@keyframes chart-hover-pulse {
-  from { r: 5; stroke-opacity: 0.55; }
-  to { r: 17; stroke-opacity: 0; }
-}
-
 .chart-tooltip {
   position: absolute;
   z-index: 5;
