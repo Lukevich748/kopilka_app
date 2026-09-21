@@ -536,7 +536,7 @@ body { overflow-x: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .rates-panel-header h3 {
@@ -585,7 +585,7 @@ body { overflow-x: hidden; }
 .rates-nominal-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .rate-row {

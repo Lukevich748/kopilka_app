@@ -670,11 +670,21 @@
   // Высота подстраивается под ТЕКУЩУЮ видимую сторону, а не под большую из
   // двух — иначе на более короткой стороне снизу оставался пустой отступ
   // до высоты более длинной.
+  // Сторона позиционирована absolute внутри .rates-flip, поэтому её
+  // scrollHeight отражает уже применённую (текущую) высоту .rates-flip,
+  // а не то, сколько реально нужно контенту. offsetTop/offsetHeight, в
+  // отличие от getBoundingClientRect(), считаются по раскладке ДО
+  // применения transform — а значит не "плывут", пока ещё доигрывают
+  // входные CSS-анимации карточки (.summary-card/.rates-panel), в отличие
+  // от первой версии этой функции.
   function syncRatesFlipHeight() {
     if (!el.ratesFlip) return;
     const flipped = el.ratesFlip.classList.contains('flipped');
     const face = flipped ? el.ratesFaceBack : el.ratesFaceFront;
-    el.ratesFlip.style.height = `${face.scrollHeight}px`;
+    const lastChild = face.lastElementChild;
+    if (!lastChild) return;
+    const paddingBottom = parseFloat(getComputedStyle(face).paddingBottom) || 0;
+    el.ratesFlip.style.height = `${Math.ceil(lastChild.offsetTop + lastChild.offsetHeight + paddingBottom)}px`;
   }
 
   function renderRates(snapshot) {
