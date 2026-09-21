@@ -68,12 +68,30 @@
       </div>
 
       <aside class="rates-panel">
-        <div class="rates-panel-header">
-          <h3>Курсы валют</h3>
-          <button type="button" class="rates-refresh" id="ratesRefreshBtn" title="Обновить курсы" aria-label="Обновить курсы">↻</button>
+        <div class="rates-flip" id="ratesFlip">
+          <div class="rates-face rates-face-front">
+            <div class="rates-panel-header">
+              <h3>Курсы валют</h3>
+              <div class="rates-panel-actions">
+                <button type="button" class="rates-refresh" id="ratesRefreshBtn" title="Обновить курсы" aria-label="Обновить курсы">↻</button>
+                <button type="button" class="rates-nominal-btn" id="ratesNominalBtn" title="Настроить номинал" aria-label="Настроить номинал курсов" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="rates-list" id="ratesList"></div>
+            <span class="rates-updated" id="ratesUpdated">Загрузка курсов…</span>
+          </div>
+
+          <div class="rates-face rates-face-back">
+            <div class="rates-panel-header">
+              <h3>Номинал валют</h3>
+              <button type="button" class="rates-back-close" id="ratesNominalCloseBtn" title="Назад к курсам" aria-label="Назад к курсам">✕</button>
+            </div>
+            <div class="rates-nominal-list" id="ratesNominalList"></div>
+            <span class="rates-updated">Например, «10» для рубля — курс покажется за 10 ₽</span>
+          </div>
         </div>
-        <div class="rates-list" id="ratesList"></div>
-        <span class="rates-updated" id="ratesUpdated">Загрузка курсов…</span>
       </aside>
     </section>
 

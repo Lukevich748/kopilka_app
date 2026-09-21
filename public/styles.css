@@ -490,13 +490,10 @@ body { overflow-x: hidden; }
   margin-top: 22px;
 }
 
-/* ---------- Rates panel ---------- */
+/* ---------- Rates panel (флип-карточка курсов) ---------- */
 .rates-panel {
   flex: 0 0 260px;
-  padding: 18px 20px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
+  perspective: 1400px;
   animation: pop 0.4s 0.15s ease both;
 }
 
@@ -504,6 +501,34 @@ body { overflow-x: hidden; }
   .summary-card { flex-direction: column; }
   .rates-panel { flex: 1 1 auto; width: 100%; }
 }
+
+/* Высоту .rates-flip выставляет JS (syncRatesFlipHeight) по большей из двух
+   сторон — лицевая и обратная стороны разной длины (список валют vs список
+   с полями ввода), а обе они абсолютно спозиционированы друг над другом. */
+.rates-flip {
+  position: relative;
+  width: 100%;
+  min-height: 170px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rates-flip.flipped { transform: rotateY(180deg); }
+
+.rates-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rates-face-back { transform: rotateY(180deg); }
 
 .rates-panel-header {
   display: flex;
@@ -521,9 +546,18 @@ body { overflow-x: hidden; }
   color: var(--text-dim);
 }
 
-.rates-refresh {
+.rates-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rates-refresh,
+.rates-nominal-btn,
+.rates-back-close {
   width: 26px;
   height: 26px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -537,15 +571,22 @@ body { overflow-x: hidden; }
   transition: background 0.15s ease, color 0.15s ease, transform 0.4s ease;
 }
 
-.rates-refresh:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+.rates-refresh:hover,
+.rates-nominal-btn:hover,
+.rates-back-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+
 .rates-refresh.spinning { animation: spin 0.7s linear infinite; }
+
+.rates-nominal-btn svg { width: 13px; height: 13px; }
+.rates-nominal-btn[aria-pressed="true"] { background: rgba(139, 92, 246, 0.18); color: var(--accent-a); }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-.rates-list {
+.rates-list,
+.rates-nominal-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -571,6 +612,34 @@ body { overflow-x: hidden; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.rate-nominal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.rate-nominal-input {
+  width: 64px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.rate-nominal-input:focus {
+  outline: none;
+  border-color: var(--accent-a);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .rates-updated {

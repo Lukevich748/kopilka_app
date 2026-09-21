@@ -17,11 +17,31 @@
     }
   }
 
+  const RATE_NOMINALS_KEY = 'kopilka:rateNominals';
+
+  function loadRateNominals() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(RATE_NOMINALS_KEY));
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRateNominals(nominals) {
+    try {
+      localStorage.setItem(RATE_NOMINALS_KEY, JSON.stringify(nominals));
+    } catch {
+      /* приватный режим браузера — просто не сохраняем предпочтение */
+    }
+  }
+
   const state = {
     currencies: [],
     currencyMap: new Map(),
     settings: { baseCurrency: 'USD', enabledCurrencies: ['USD', 'EUR', 'PLN', 'RUB', 'BYN'] },
     ratesSnapshot: null,
+    rateNominals: loadRateNominals(),
     transactions: [],
     summary: null,
     chartData: null,
@@ -67,9 +87,15 @@
     historyCount: document.getElementById('historyCount'),
     emptyState: document.getElementById('emptyState'),
     toast: document.getElementById('toast'),
+    ratesFlip: document.getElementById('ratesFlip'),
+    ratesFaceFront: document.querySelector('.rates-face-front'),
+    ratesFaceBack: document.querySelector('.rates-face-back'),
     ratesList: document.getElementById('ratesList'),
     ratesUpdated: document.getElementById('ratesUpdated'),
     ratesRefreshBtn: document.getElementById('ratesRefreshBtn'),
+    ratesNominalBtn: document.getElementById('ratesNominalBtn'),
+    ratesNominalCloseBtn: document.getElementById('ratesNominalCloseBtn'),
+    ratesNominalList: document.getElementById('ratesNominalList'),
     visibilityToggle: document.getElementById('visibilityToggle'),
     chartWrap: document.getElementById('chartWrap'),
     chartSvg: document.getElementById('chartSvg'),
@@ -583,33 +609,78 @@
     return 'операций';
   }
 
-  function renderRates(snapshot) {
-    state.ratesSnapshot = snapshot;
+  // Номинал — во сколько единиц валюты показывать курс (по умолчанию 1,
+  // но для мелких валют вроде RUB удобнее видеть курс за 10 или 100).
+  function getRateNominal(code) {
+    const n = state.rateNominals[code];
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }
 
-    const usd = snapshot.rates.find((r) => r.code === 'USD');
-    const usdSymbol = usd ? usd.symbol : '$';
+  function visibleRates() {
+    if (!state.ratesSnapshot) return [];
     const enabled = new Set(state.settings.enabledCurrencies || []);
+    return state.ratesSnapshot.rates.filter((r) => r.code !== 'USD' && enabled.has(r.code));
+  }
 
-    el.ratesList.innerHTML = snapshot.rates
-      .filter((r) => r.code !== 'USD' && enabled.has(r.code))
-      .map(
-        (r) => `<div class="rate-row">
-          <span class="rate-pair">${r.flag} 1 ${r.code}</span>
-          <span class="rate-value">${formatRateValue(r.rateToUSD)} ${usdSymbol}</span>
-        </div>`
-      )
+  // Лицевая сторона карточки — сам список курсов + статус обновления.
+  // Вынесена отдельно от renderRates, чтобы пересчитывать её на каждый ввод
+  // номинала, не трогая при этом поля ввода на обратной стороне (иначе
+  // пересборка их DOM-узлов на каждое нажатие клавиши сбивала бы фокус).
+  function renderRatesFront() {
+    if (!state.ratesSnapshot) return;
+    const usd = state.ratesSnapshot.rates.find((r) => r.code === 'USD');
+    const usdSymbol = usd ? usd.symbol : '$';
+
+    el.ratesList.innerHTML = visibleRates()
+      .map((r) => {
+        const nominal = getRateNominal(r.code);
+        return `<div class="rate-row">
+          <span class="rate-pair">${r.flag} ${nominal} ${r.code}</span>
+          <span class="rate-value">${formatRateValue(r.rateToUSD * nominal)} ${usdSymbol}</span>
+        </div>`;
+      })
       .join('');
 
-    const isLive = snapshot.source === 'live';
+    const isLive = state.ratesSnapshot.source === 'live';
     let statusText;
     if (isLive) {
-      statusText = `Обновлено ${formatDateTime(snapshot.updatedAt)}`;
-      if (snapshot.lastError) statusText += ' · последнее обновление не удалось';
+      statusText = `Обновлено ${formatDateTime(state.ratesSnapshot.updatedAt)}`;
+      if (state.ratesSnapshot.lastError) statusText += ' · последнее обновление не удалось';
     } else {
       statusText = 'Курс приблизительный — нет связи с сервером курсов';
     }
     el.ratesUpdated.textContent = statusText;
     el.ratesUpdated.classList.toggle('stale', !isLive);
+  }
+
+  function renderRatesNominalList() {
+    el.ratesNominalList.innerHTML = visibleRates()
+      .map(
+        (r) => `<div class="rate-nominal-row">
+          <span class="rate-pair">${r.flag} ${r.code}</span>
+          <input type="text" inputmode="numeric" class="rate-nominal-input" data-code="${r.code}" value="${getRateNominal(r.code)}">
+        </div>`
+      )
+      .join('');
+  }
+
+  function syncRatesFlipHeight() {
+    if (!el.ratesFlip) return;
+    const frontH = el.ratesFaceFront.scrollHeight;
+    const backH = el.ratesFaceBack.scrollHeight;
+    el.ratesFlip.style.height = `${Math.max(frontH, backH)}px`;
+  }
+
+  function renderRates(snapshot) {
+    state.ratesSnapshot = snapshot;
+    renderRatesFront();
+    renderRatesNominalList();
+    syncRatesFlipHeight();
+  }
+
+  function setRatesFlipped(flipped) {
+    el.ratesFlip.classList.toggle('flipped', flipped);
+    el.ratesNominalBtn.setAttribute('aria-pressed', String(flipped));
   }
 
   async function refreshRates() {
@@ -1248,6 +1319,28 @@
     }
   });
 
+  el.ratesNominalBtn.addEventListener('click', () => {
+    setRatesFlipped(!el.ratesFlip.classList.contains('flipped'));
+  });
+
+  el.ratesNominalCloseBtn.addEventListener('click', () => setRatesFlipped(false));
+
+  el.ratesNominalList.addEventListener('input', (e) => {
+    const input = e.target.closest('.rate-nominal-input');
+    if (!input) return;
+    const raw = Number(input.value.replace(',', '.'));
+    const nominal = Number.isFinite(raw) && raw > 0 ? raw : 1;
+    state.rateNominals[input.dataset.code] = nominal;
+    saveRateNominals(state.rateNominals);
+    renderRatesFront();
+  });
+
+  el.ratesNominalList.addEventListener('change', (e) => {
+    const input = e.target.closest('.rate-nominal-input');
+    if (!input) return;
+    input.value = String(getRateNominal(input.dataset.code));
+  });
+
   function updateVisibilityToggleUI() {
     el.visibilityToggle.setAttribute('aria-pressed', state.amountsHidden ? 'true' : 'false');
     const label = state.amountsHidden ? 'Показать суммы' : 'Скрыть суммы';
@@ -1395,6 +1488,11 @@
     });
     chartResizeObserver.observe(el.chartWrap);
   }
+
+  // Ширина карточки курсов меняется на брейкпоинте 720px (переход в
+  // одну колонку) — из-за этого может измениться перенос строк внутри
+  // сторон карточки, а с ним и нужная высота флип-контейнера.
+  window.addEventListener('resize', syncRatesFlipHeight);
 
   if (window.IntersectionObserver) {
     const totalVisibilityObserver = new IntersectionObserver(
