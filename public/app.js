@@ -883,6 +883,47 @@
     el.historyCount.textContent = state.transactions.length ? `${state.transactions.length}` : '';
   }
 
+  // Специально для удаления ПОСЛЕДНЕЙ записи: плейсхолдер "пусто" заметно
+  // выше одной строки истории, поэтому схлопывать запись до нуля, а потом
+  // скачком вырастать под плейсхолдер (как было раньше) — выглядит как два
+  // отдельных рывка. Вместо этого одним непрерывным переходом меняем высоту
+  // контейнера от текущей к целевой, пока сама запись быстро растворяется,
+  // а плейсхолдер проявляется чуть с отставанием — без прыжка по высоте.
+  function collapseHistoryListToEmptyState(itemEl) {
+    const startHeight = el.historyList.getBoundingClientRect().height;
+
+    itemEl.classList.add('leaving-fade');
+    el.historyList.style.height = `${startHeight}px`;
+    el.historyList.style.overflow = 'hidden';
+    void el.historyList.offsetHeight; // форсируем layout с исходной высотой
+
+    itemEl.remove();
+    el.emptyState.style.animation = 'none'; // проявление ведём вручную transition'ом, а не CSS-анимацией "rise"
+    el.historyList.appendChild(el.emptyState);
+    el.emptyState.style.opacity = '0';
+    const endHeight = el.historyList.scrollHeight;
+    void el.historyList.offsetHeight;
+
+    el.historyList.style.transition = 'height 0.32s ease';
+    el.emptyState.style.transition = 'opacity 0.3s ease 0.05s';
+    el.historyList.style.height = `${endHeight}px`;
+    el.emptyState.style.opacity = '1';
+
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      el.historyList.style.transition = '';
+      el.historyList.style.height = '';
+      el.historyList.style.overflow = '';
+      el.emptyState.style.transition = '';
+      el.emptyState.style.opacity = '';
+      el.emptyState.style.animation = '';
+    };
+    el.historyList.addEventListener('transitionend', cleanup, { once: true });
+    setTimeout(cleanup, 420); // страховка, если transitionend почему-то не пришёл
+  }
+
   // Плавно убирает одну запись: схлопывает её высоту/отступы вместе с fade,
   // остальные строки просто "подъезжают" за счёт обычного flow вёрстки —
   // никакой пересборки соседних узлов и повторной анимации появления.
@@ -892,6 +933,11 @@
     const itemEl = el.historyList.querySelector(`.history-item[data-id="${id}"]`);
     if (!itemEl) {
       if (!state.transactions.length) showEmptyHistoryState();
+      return;
+    }
+
+    if (!state.transactions.length) {
+      collapseHistoryListToEmptyState(itemEl);
       return;
     }
 
@@ -908,7 +954,6 @@
       if (finished) return;
       finished = true;
       itemEl.remove();
-      if (!state.transactions.length) showEmptyHistoryState();
     };
     itemEl.addEventListener('transitionend', finalize, { once: true });
     setTimeout(finalize, 400); // страховка, если transitionend почему-то не пришёл

@@ -1228,6 +1228,16 @@ body { overflow-x: hidden; }
   pointer-events: none;
 }
 
+/* Последняя запись перед переходом в пустое состояние — быстро растворяется
+   на месте, пока контейнер одним движением меняет высоту под плейсхолдер
+   (см. collapseHistoryListToEmptyState в app.js), без отдельного схлопывания. */
+.history-item.leaving-fade {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+}
+
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
