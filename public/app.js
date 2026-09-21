@@ -20,7 +20,8 @@
   const state = {
     currencies: [],
     currencyMap: new Map(),
-    settings: { baseCurrency: 'USD' },
+    settings: { baseCurrency: 'USD', enabledCurrencies: ['USD', 'EUR', 'PLN', 'RUB', 'BYN'] },
+    ratesSnapshot: null,
     transactions: [],
     summary: null,
     chartData: null,
@@ -79,6 +80,10 @@
     chartTooltipTotal: document.getElementById('chartTooltipTotal'),
     chartTooltipAdded: document.getElementById('chartTooltipAdded'),
     chartEmpty: document.getElementById('chartEmpty'),
+    settingsBtn: document.getElementById('settingsBtn'),
+    settingsBackdrop: document.getElementById('settingsBackdrop'),
+    settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+    currencyToggleList: document.getElementById('currencyToggleList'),
   };
 
   const numberFormatCache = new Map();
@@ -299,15 +304,19 @@
     }, 2600);
   }
 
-  function currencyOptionsHTML() {
-    return state.currencies
-      .map((c) => `<option value="${c.code}">${c.flag} ${c.code} — ${c.symbol}</option>`)
-      .join('');
+  function enabledCurrencyList() {
+    const enabled = new Set(state.settings.enabledCurrencies || []);
+    return state.currencies.filter((c) => enabled.has(c.code));
+  }
+
+  function currencyOptionsHTML(list) {
+    return list.map((c) => `<option value="${c.code}">${c.flag} ${c.code} — ${c.symbol}</option>`).join('');
   }
 
   function renderCurrencySelects() {
-    el.currencySelect.innerHTML = currencyOptionsHTML();
-    el.baseCurrencySelect.innerHTML = currencyOptionsHTML();
+    const options = currencyOptionsHTML(enabledCurrencyList());
+    el.currencySelect.innerHTML = options;
+    el.baseCurrencySelect.innerHTML = options;
     el.baseCurrencySelect.value = state.settings.baseCurrency;
   }
 
@@ -349,11 +358,14 @@
   }
 
   function renderRates(snapshot) {
+    state.ratesSnapshot = snapshot;
+
     const usd = snapshot.rates.find((r) => r.code === 'USD');
     const usdSymbol = usd ? usd.symbol : '$';
+    const enabled = new Set(state.settings.enabledCurrencies || []);
 
     el.ratesList.innerHTML = snapshot.rates
-      .filter((r) => r.code !== 'USD')
+      .filter((r) => r.code !== 'USD' && enabled.has(r.code))
       .map(
         (r) => `<div class="rate-row">
           <span class="rate-pair">${r.flag} 1 ${r.code}</span>
@@ -627,6 +639,14 @@
   function enterEditMode(tx) {
     state.editingId = tx.id;
     el.amountInput.value = formatAmountString(String(tx.amount));
+
+    // Валюта записи могла быть отключена в настройках после её создания —
+    // временно добавляем её в список, чтобы не потерять/не подменить молча.
+    if (!el.currencySelect.querySelector(`option[value="${tx.currency}"]`)) {
+      const c = state.currencyMap.get(tx.currency);
+      const label = c ? `${c.flag} ${c.code} — ${c.symbol} (отключена)` : `${tx.currency} (отключена)`;
+      el.currencySelect.insertAdjacentHTML('beforeend', `<option value="${tx.currency}">${label}</option>`);
+    }
     el.currencySelect.value = tx.currency;
     state.selectedDate = tx.date;
     updateDateLabel();
@@ -642,6 +662,7 @@
   function exitEditMode() {
     state.editingId = null;
     el.addForm.reset();
+    renderCurrencySelects(); // сбрасывает временный пункт с отключённой валютой, если он был добавлен
     state.selectedDate = todayISO();
     updateDateLabel();
     el.formTitle.textContent = 'Добавить накопление';
@@ -745,6 +766,8 @@
         body: JSON.stringify({ baseCurrency: el.baseCurrencySelect.value }),
       });
       await refreshSummary();
+      if (state.ratesSnapshot) renderRates(state.ratesSnapshot);
+      if (!el.settingsBackdrop.hidden) renderCurrencyToggleList();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -783,6 +806,81 @@
     if (state.summary) renderSummary(state.summary);
     if (state.chartData) renderChart(state.chartData);
     renderHistory();
+  });
+
+  // ---------- Настройки: управление списком доступных валют ----------
+  function renderCurrencyToggleList() {
+    const enabled = new Set(state.settings.enabledCurrencies || []);
+    el.currencyToggleList.innerHTML = state.currencies
+      .map((c) => {
+        const isEnabled = enabled.has(c.code);
+        const isBase = c.code === state.settings.baseCurrency;
+        const isLastEnabled = isEnabled && enabled.size === 1;
+        const isLocked = isBase || isLastEnabled;
+        let hint = '';
+        if (isBase) hint = 'Используется как базовая валюта';
+        else if (isLastEnabled) hint = 'Должна остаться хотя бы одна валюта';
+
+        return `<label class="currency-toggle-row${isLocked ? ' disabled' : ''}">
+          <span class="currency-toggle-info">
+            <span class="currency-toggle-flag">${c.flag}</span>
+            <span class="currency-toggle-name">${c.name}</span>
+            <span class="currency-toggle-code">${c.code}</span>
+            ${hint ? `<span class="currency-toggle-hint">${hint}</span>` : ''}
+          </span>
+          <span class="toggle-switch">
+            <input type="checkbox" data-code="${c.code}" ${isEnabled ? 'checked' : ''} ${isLocked ? 'disabled' : ''} />
+            <span class="toggle-track"></span>
+          </span>
+        </label>`;
+      })
+      .join('');
+  }
+
+  function handleSettingsKeydown(e) {
+    if (e.key === 'Escape') closeSettingsModal();
+  }
+
+  function openSettingsModal() {
+    renderCurrencyToggleList();
+    el.settingsBackdrop.hidden = false;
+    document.addEventListener('keydown', handleSettingsKeydown);
+  }
+
+  function closeSettingsModal() {
+    el.settingsBackdrop.hidden = true;
+    document.removeEventListener('keydown', handleSettingsKeydown);
+  }
+
+  el.settingsBtn.addEventListener('click', openSettingsModal);
+  el.settingsCloseBtn.addEventListener('click', closeSettingsModal);
+  el.settingsBackdrop.addEventListener('click', (e) => {
+    if (e.target === el.settingsBackdrop) closeSettingsModal();
+  });
+
+  el.currencyToggleList.addEventListener('change', async (e) => {
+    const checkbox = e.target.closest('input[type="checkbox"]');
+    if (!checkbox) return;
+
+    const code = checkbox.dataset.code;
+    const enabled = new Set(state.settings.enabledCurrencies || []);
+    if (checkbox.checked) enabled.add(code);
+    else enabled.delete(code);
+
+    checkbox.disabled = true;
+    try {
+      state.settings = await api('/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ enabledCurrencies: [...enabled] }),
+      });
+      renderCurrencyToggleList();
+      renderCurrencySelects();
+      if (state.ratesSnapshot) renderRates(state.ratesSnapshot);
+      showToast(checkbox.checked ? `Валюта ${code} включена` : `Валюта ${code} отключена`);
+    } catch (err) {
+      showToast(err.message, 'error');
+      renderCurrencyToggleList();
+    }
   });
 
   updateVisibilityToggleUI();

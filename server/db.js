@@ -5,7 +5,7 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
 const DEFAULT_DATA = {
-  settings: { baseCurrency: 'USD' },
+  settings: { baseCurrency: 'USD', enabledCurrencies: ['USD', 'EUR', 'PLN', 'RUB', 'BYN'] },
   transactions: [],
 };
 

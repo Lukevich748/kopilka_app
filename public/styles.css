@@ -165,6 +165,188 @@ body { overflow-x: hidden; }
   background-position: right 12px center;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-btn {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.3s ease;
+}
+
+.settings-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.settings-btn:active svg { transform: rotate(35deg); }
+.settings-btn svg { width: 18px; height: 18px; transition: transform 0.3s ease; }
+
+/* ---------- Modal (settings) ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(5, 6, 14, 0.65);
+  backdrop-filter: blur(4px);
+  animation: pop 0.15s ease both;
+}
+
+.modal-backdrop[hidden] { display: none; }
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.modal-close {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.modal-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+
+.settings-section h3 {
+  margin: 22px 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+
+.settings-section:first-of-type h3 { margin-top: 18px; }
+
+.settings-hint {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.currency-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.currency-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.currency-toggle-row:hover { background: rgba(255, 255, 255, 0.05); }
+.currency-toggle-row.disabled { cursor: default; }
+.currency-toggle-row.disabled:hover { background: none; }
+
+.currency-toggle-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.currency-toggle-flag { font-size: 17px; }
+.currency-toggle-name { font-size: 14px; font-weight: 600; }
+.currency-toggle-code { font-size: 12px; color: var(--text-dim); }
+
+.currency-toggle-hint {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.toggle-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+  pointer-events: none;
+}
+
+.toggle-track::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: linear-gradient(120deg, var(--accent-a), var(--accent-b));
+}
+
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
+
+.toggle-switch input:disabled { cursor: not-allowed; }
+.toggle-switch input:disabled + .toggle-track { opacity: 0.45; }
+
 /* ---------- Glass card base ---------- */
 .glass {
   background: linear-gradient(180deg, var(--surface), rgba(255, 255, 255, 0.03));

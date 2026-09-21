@@ -38,10 +38,16 @@
         </div>
       </div>
 
-      <label class="base-currency-picker">
-        <span>Итого в</span>
-        <select id="baseCurrencySelect"></select>
-      </label>
+      <div class="topbar-actions">
+        <label class="base-currency-picker">
+          <span>Итого в</span>
+          <select id="baseCurrencySelect"></select>
+        </label>
+
+        <button type="button" class="settings-btn" id="settingsBtn" title="Настройки" aria-label="Настройки" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
     </header>
 
     <section class="summary-card glass" id="summaryCard">
@@ -182,6 +188,23 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <div class="modal-backdrop" id="settingsBackdrop" hidden>
+    <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-header">
+        <h2 id="settingsTitle">Настройки</h2>
+        <button type="button" class="modal-close" id="settingsCloseBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <section class="settings-section">
+          <h3>Валюты и курсы</h3>
+          <p class="settings-hint">Выберите, какие валюты доступны для добавления накоплений и выбора в качестве базовой.</p>
+          <div class="currency-toggle-list" id="currencyToggleList"></div>
+        </section>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

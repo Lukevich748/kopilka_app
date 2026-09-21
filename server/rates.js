@@ -9,8 +9,16 @@ const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // раз в 6 часов
 const FETCH_TIMEOUT_MS = 8000;
 
 // Курс = сколько USD стоит 1 единица валюты. Используется, пока не подтянулись
-// живые данные, и как последний резерв, если API недоступен.
-const FALLBACK_RATES_TO_USD = { USD: 1, EUR: 1.08 };
+// живые данные, и как последний резерв, если API недоступен. Frankfurter (ECB)
+// не публикует курс для RUB и BYN, поэтому для них всегда используется это
+// приблизительное значение — это не баг, а ограничение источника данных.
+const FALLBACK_RATES_TO_USD = {
+  USD: 1,
+  EUR: 1.08,
+  PLN: 0.25,
+  RUB: 0.0107,
+  BYN: 0.31,
+};
 
 const state = {
   ratesToUSD: { ...FALLBACK_RATES_TO_USD },

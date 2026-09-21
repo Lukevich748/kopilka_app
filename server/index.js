@@ -92,12 +92,31 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.put('/api/settings', async (req, res) => {
-  const { baseCurrency } = req.body || {};
-  if (!isSupportedCurrency(baseCurrency)) {
+  const db = readDb();
+  const { baseCurrency, enabledCurrencies } = req.body || {};
+
+  let nextEnabled = db.settings.enabledCurrencies;
+  if (enabledCurrencies !== undefined) {
+    const unique = Array.isArray(enabledCurrencies) ? [...new Set(enabledCurrencies)] : [];
+    if (unique.length === 0) {
+      return res.status(400).json({ error: 'Должна остаться хотя бы одна включённая валюта' });
+    }
+    if (!unique.every(isSupportedCurrency)) {
+      return res.status(400).json({ error: 'Неизвестная валюта в списке' });
+    }
+    nextEnabled = unique;
+  }
+
+  const nextBase = baseCurrency !== undefined ? baseCurrency : db.settings.baseCurrency;
+  if (!isSupportedCurrency(nextBase)) {
     return res.status(400).json({ error: 'Неподдерживаемая базовая валюта' });
   }
-  const db = readDb();
-  db.settings.baseCurrency = baseCurrency;
+  if (!nextEnabled.includes(nextBase)) {
+    return res.status(400).json({ error: 'Нельзя отключить валюту, выбранную как базовая' });
+  }
+
+  db.settings.baseCurrency = nextBase;
+  db.settings.enabledCurrencies = nextEnabled;
   await writeDb(db);
   res.json(db.settings);
 });
@@ -126,6 +145,11 @@ app.post('/api/transactions', async (req, res) => {
   const parsed = parseTransactionInput(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
 
+  const db = readDb();
+  if (!db.settings.enabledCurrencies.includes(parsed.currency)) {
+    return res.status(400).json({ error: 'Эта валюта отключена в настройках' });
+  }
+
   const tx = {
     id: crypto.randomUUID(),
     amount: parsed.amount,
@@ -134,7 +158,6 @@ app.post('/api/transactions', async (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
-  const db = readDb();
   db.transactions.push(tx);
   await writeDb(db);
 
@@ -148,6 +171,12 @@ app.put('/api/transactions/:id', async (req, res) => {
   const db = readDb();
   const tx = db.transactions.find((t) => t.id === req.params.id);
   if (!tx) return res.status(404).json({ error: 'Запись не найдена' });
+
+  // Разрешаем оставить валюту записи прежней, даже если её потом отключили —
+  // а вот переключиться можно только на валюту, включённую сейчас.
+  if (parsed.currency !== tx.currency && !db.settings.enabledCurrencies.includes(parsed.currency)) {
+    return res.status(400).json({ error: 'Эта валюта отключена в настройках' });
+  }
 
   tx.amount = parsed.amount;
   tx.currency = parsed.currency;
