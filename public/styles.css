@@ -246,52 +246,6 @@ body { overflow-x: hidden; }
 
 .modal-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
 
-.modal-sm { max-width: 360px; }
-
-.delete-confirm-text {
-  margin: 4px 0 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-dim);
-}
-
-.delete-confirm-text strong { color: var(--text); font-variant-numeric: tabular-nums; }
-
-.modal-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.modal-btn {
-  flex: 1;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  border: none;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease, filter 0.15s ease, transform 0.15s ease;
-}
-
-.modal-btn:active { transform: translateY(1px); }
-
-.modal-btn-secondary {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.modal-btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
-
-.modal-btn-danger {
-  background: linear-gradient(120deg, #f87171, #ef4444);
-  color: #fff;
-  box-shadow: 0 10px 24px -10px rgba(239, 68, 68, 0.6);
-}
-
-.modal-btn-danger:hover { filter: brightness(1.08); }
-
 .settings-section h3 {
   margin: 22px 0 4px;
   font-size: 12.5px;
@@ -1215,6 +1169,34 @@ body { overflow-x: hidden; }
 .item-delete:hover { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
 
 .history-item.editing .item-edit { opacity: 1; background: rgba(139, 92, 246, 0.15); color: var(--accent-a); }
+
+/* Подтверждение удаления галочкой: вместо модалки крестик "включает" режим
+   подтверждения, и рядом с ним выезжает кнопка-галочка. Кнопка редактирования
+   на это время прячется, чтобы не отвлекать от единственного решения. */
+.item-delete-confirm {
+  flex: 0 0 auto;
+  width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: none;
+  padding: 0;
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  cursor: pointer;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease, background 0.15s ease;
+}
+
+.item-delete-confirm svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.item-delete-confirm:hover { background: rgba(74, 222, 128, 0.25); }
+
+.history-item.confirming-delete .item-edit { opacity: 0; pointer-events: none; }
+.history-item.confirming-delete .item-delete { opacity: 1; background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+.history-item.confirming-delete .item-delete-confirm { width: 32px; opacity: 1; }
 
 /* Уходящая запись: схлопываем высоту/отступы вместе с fade — соседние
    записи плавно "подъезжают" на освободившееся место одним движением,

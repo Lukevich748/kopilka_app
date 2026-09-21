@@ -29,7 +29,6 @@
     amountsHidden: loadHiddenPref(),
     transactionType: 'deposit',
     editingId: null,
-    pendingDeleteId: null,
     totalVisible: true,
     pendingTotalText: null,
     selectedDate: null,
@@ -60,7 +59,6 @@
     submitBtnIcon: document.querySelector('.submit-btn .coin'),
     submitBtnLabel: document.getElementById('submitBtnLabel'),
     cancelEditBtn: document.getElementById('cancelEditBtn'),
-    deleteConfirmTypeLabel: document.getElementById('deleteConfirmTypeLabel'),
     grandTotalValue: document.querySelector('#grandTotal .amount-value'),
     grandTotalCurrency: document.getElementById('grandTotalCurrency'),
     txCountHint: document.getElementById('txCountHint'),
@@ -92,12 +90,6 @@
     settingsBackdrop: document.getElementById('settingsBackdrop'),
     settingsCloseBtn: document.getElementById('settingsCloseBtn'),
     currencyToggleList: document.getElementById('currencyToggleList'),
-    deleteConfirmBackdrop: document.getElementById('deleteConfirmBackdrop'),
-    deleteConfirmCloseBtn: document.getElementById('deleteConfirmCloseBtn'),
-    deleteConfirmCancelBtn: document.getElementById('deleteConfirmCancelBtn'),
-    deleteConfirmOkBtn: document.getElementById('deleteConfirmOkBtn'),
-    deleteConfirmAmount: document.getElementById('deleteConfirmAmount'),
-    deleteConfirmDate: document.getElementById('deleteConfirmDate'),
   };
 
   const numberFormatCache = new Map();
@@ -817,6 +809,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </button>
       <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
+      <button class="item-delete-confirm" type="button" title="Подтвердить удаление" aria-label="Подтвердить удаление">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>
     </div>`;
 
   // Обновляет только то, что реально зависит от суммы/маски приватности —
@@ -1149,6 +1144,52 @@
     exitEditMode();
   });
 
+  // Удаление подтверждается прямо в строке: клик по крестику "открывает"
+  // соседнюю кнопку-галочку (клик по ней удаляет), повторный клик по
+  // крестику, клик вне записи или Escape — отменяют, без модалки.
+  function handleDeleteConfirmOutsideClick(e) {
+    const confirming = el.historyList.querySelector('.history-item.confirming-delete');
+    if (confirming && !confirming.contains(e.target)) cancelPendingDelete();
+  }
+
+  function handleDeleteConfirmKeydown(e) {
+    if (e.key === 'Escape') cancelPendingDelete();
+  }
+
+  function stopWatchingDeleteConfirm() {
+    document.removeEventListener('click', handleDeleteConfirmOutsideClick);
+    document.removeEventListener('keydown', handleDeleteConfirmKeydown);
+  }
+
+  function cancelPendingDelete() {
+    const confirming = el.historyList.querySelector('.history-item.confirming-delete');
+    if (confirming) confirming.classList.remove('confirming-delete');
+    stopWatchingDeleteConfirm();
+  }
+
+  function toggleDeleteConfirm(itemEl) {
+    const alreadyConfirming = itemEl.classList.contains('confirming-delete');
+    cancelPendingDelete();
+    if (alreadyConfirming) return;
+
+    itemEl.classList.add('confirming-delete');
+    document.addEventListener('click', handleDeleteConfirmOutsideClick);
+    document.addEventListener('keydown', handleDeleteConfirmKeydown);
+  }
+
+  async function deleteTransaction(id, confirmBtn) {
+    try {
+      await api(`/transactions/${id}`, { method: 'DELETE' });
+      if (id === state.editingId) exitEditMode();
+      state.transactions = state.transactions.filter((t) => t.id !== id);
+      removeHistoryItemAnimated(id);
+      await refreshSummary();
+    } catch (err) {
+      confirmBtn.disabled = false;
+      showToast(err.message, 'error');
+    }
+  }
+
   el.historyList.addEventListener('click', (e) => {
     const editBtn = e.target.closest('.item-edit');
     if (editBtn) {
@@ -1158,56 +1199,19 @@
       return;
     }
 
+    const confirmBtn = e.target.closest('.item-delete-confirm');
+    if (confirmBtn) {
+      if (confirmBtn.disabled) return;
+      confirmBtn.disabled = true;
+      const id = confirmBtn.closest('.history-item').dataset.id;
+      stopWatchingDeleteConfirm();
+      deleteTransaction(id, confirmBtn);
+      return;
+    }
+
     const deleteBtn = e.target.closest('.item-delete');
-    if (!deleteBtn) return;
-    const id = deleteBtn.closest('.history-item').dataset.id;
-    const tx = state.transactions.find((t) => t.id === id);
-    if (tx) openDeleteConfirm(tx);
-  });
-
-  function handleDeleteConfirmKeydown(e) {
-    if (e.key === 'Escape') closeDeleteConfirm();
-  }
-
-  function openDeleteConfirm(tx) {
-    state.pendingDeleteId = tx.id;
-    const c = state.currencyMap.get(tx.currency);
-    const amountText = `${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
-    el.deleteConfirmTypeLabel.textContent = tx.type === 'withdrawal' ? 'Снятие' : 'Пополнение';
-    el.deleteConfirmAmount.textContent = state.amountsHidden ? maskDigits(amountText) : amountText;
-    el.deleteConfirmDate.textContent = formatDate(tx.date);
-    el.deleteConfirmBackdrop.hidden = false;
-    document.addEventListener('keydown', handleDeleteConfirmKeydown);
-  }
-
-  function closeDeleteConfirm() {
-    state.pendingDeleteId = null;
-    el.deleteConfirmBackdrop.hidden = true;
-    document.removeEventListener('keydown', handleDeleteConfirmKeydown);
-  }
-
-  el.deleteConfirmCloseBtn.addEventListener('click', closeDeleteConfirm);
-  el.deleteConfirmCancelBtn.addEventListener('click', closeDeleteConfirm);
-  el.deleteConfirmBackdrop.addEventListener('click', (e) => {
-    if (e.target === el.deleteConfirmBackdrop) closeDeleteConfirm();
-  });
-
-  el.deleteConfirmOkBtn.addEventListener('click', async () => {
-    const id = state.pendingDeleteId;
-    if (!id) return;
-
-    el.deleteConfirmOkBtn.disabled = true;
-    try {
-      await api(`/transactions/${id}`, { method: 'DELETE' });
-      closeDeleteConfirm();
-      if (id === state.editingId) exitEditMode();
-      state.transactions = state.transactions.filter((t) => t.id !== id);
-      removeHistoryItemAnimated(id);
-      await refreshSummary();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      el.deleteConfirmOkBtn.disabled = false;
+    if (deleteBtn) {
+      toggleDeleteConfirm(deleteBtn.closest('.history-item'));
     }
   });
 
