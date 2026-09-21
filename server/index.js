@@ -12,12 +12,26 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+function signedAmount(tx) {
+  return tx.type === 'withdrawal' ? -tx.amount : tx.amount;
+}
+
+// Текущий остаток по валюте (пополнения минус снятия), без учёта записи
+// excludeId — нужно при редактировании, чтобы не мешать старое значение
+// правки с новым при проверке "хватает ли средств".
+function currencyBalance(db, currency, excludeId) {
+  return db.transactions.reduce((sum, tx) => {
+    if (tx.id === excludeId || tx.currency !== currency) return sum;
+    return sum + signedAmount(tx);
+  }, 0);
+}
+
 function computeSummary(db) {
   const baseCurrency = db.settings.baseCurrency;
   const totalsByCurrency = {};
 
   for (const tx of db.transactions) {
-    totalsByCurrency[tx.currency] = (totalsByCurrency[tx.currency] || 0) + tx.amount;
+    totalsByCurrency[tx.currency] = (totalsByCurrency[tx.currency] || 0) + signedAmount(tx);
   }
 
   let grandTotal = 0;
@@ -52,7 +66,8 @@ function computeMonthlyHistory(db) {
     const converted = rates.convert(tx.amount, tx.currency, baseCurrency);
     if (converted === null) continue;
     const month = tx.date.slice(0, 7); // 'YYYY-MM'
-    addedByMonth.set(month, (addedByMonth.get(month) || 0) + converted);
+    const signed = tx.type === 'withdrawal' ? -converted : converted;
+    addedByMonth.set(month, (addedByMonth.get(month) || 0) + signed);
   }
 
   const months = [...addedByMonth.keys()].sort();
@@ -129,7 +144,7 @@ app.get('/api/transactions', (req, res) => {
 });
 
 function parseTransactionInput(body) {
-  const { amount, currency, date } = body || {};
+  const { amount, currency, date, type } = body || {};
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     return { error: 'Сумма должна быть положительным числом' };
@@ -137,8 +152,9 @@ function parseTransactionInput(body) {
   if (!isSupportedCurrency(currency)) {
     return { error: 'Неподдерживаемая валюта' };
   }
+  const safeType = type === 'withdrawal' ? 'withdrawal' : 'deposit';
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  return { amount: round2(numericAmount), currency, date: safeDate };
+  return { amount: round2(numericAmount), currency, date: safeDate, type: safeType };
 }
 
 app.post('/api/transactions', async (req, res) => {
@@ -150,10 +166,18 @@ app.post('/api/transactions', async (req, res) => {
     return res.status(400).json({ error: 'Эта валюта отключена в настройках' });
   }
 
+  if (parsed.type === 'withdrawal') {
+    const balance = round2(currencyBalance(db, parsed.currency));
+    if (round2(balance - parsed.amount) < 0) {
+      return res.status(400).json({ error: `Недостаточно средств в этой валюте: доступно ${balance}` });
+    }
+  }
+
   const tx = {
     id: crypto.randomUUID(),
     amount: parsed.amount,
     currency: parsed.currency,
+    type: parsed.type,
     date: parsed.date,
     createdAt: new Date().toISOString(),
   };
@@ -178,8 +202,16 @@ app.put('/api/transactions/:id', async (req, res) => {
     return res.status(400).json({ error: 'Эта валюта отключена в настройках' });
   }
 
+  if (parsed.type === 'withdrawal') {
+    const balance = round2(currencyBalance(db, parsed.currency, tx.id));
+    if (round2(balance - parsed.amount) < 0) {
+      return res.status(400).json({ error: `Недостаточно средств в этой валюте: доступно ${balance}` });
+    }
+  }
+
   tx.amount = parsed.amount;
   tx.currency = parsed.currency;
+  tx.type = parsed.type;
   tx.date = parsed.date;
   tx.updatedAt = new Date().toISOString();
 

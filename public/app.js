@@ -27,6 +27,7 @@
     chartData: null,
     chartGeometry: null,
     amountsHidden: loadHiddenPref(),
+    transactionType: 'deposit',
     editingId: null,
     pendingDeleteId: null,
     totalVisible: true,
@@ -53,9 +54,13 @@
     formCard: document.querySelector('.form-card'),
     formTitle: document.getElementById('formTitle'),
     formError: document.getElementById('formError'),
+    typeDepositBtn: document.getElementById('typeDepositBtn'),
+    typeWithdrawBtn: document.getElementById('typeWithdrawBtn'),
     submitBtn: document.querySelector('.submit-btn'),
+    submitBtnIcon: document.querySelector('.submit-btn .coin'),
     submitBtnLabel: document.getElementById('submitBtnLabel'),
     cancelEditBtn: document.getElementById('cancelEditBtn'),
+    deleteConfirmTypeLabel: document.getElementById('deleteConfirmTypeLabel'),
     grandTotalValue: document.querySelector('#grandTotal .amount-value'),
     grandTotalCurrency: document.getElementById('grandTotalCurrency'),
     txCountHint: document.getElementById('txCountHint'),
@@ -563,7 +568,7 @@
 
     el.txCountHint.textContent = summary.transactionsCount
       ? `${summary.transactionsCount} ${pluralizeEntries(summary.transactionsCount)} · пересчитано ориентировочно`
-      : 'Пока нет ни одного пополнения';
+      : 'Пока нет ни одной операции';
 
     const entries = Object.entries(summary.totalsByCurrency);
     el.currencyChips.innerHTML = entries.length
@@ -585,9 +590,9 @@
   function pluralizeEntries(n) {
     const mod10 = n % 10;
     const mod100 = n % 100;
-    if (mod10 === 1 && mod100 !== 11) return 'пополнение';
-    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'пополнения';
-    return 'пополнений';
+    if (mod10 === 1 && mod100 !== 11) return 'операция';
+    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'операции';
+    return 'операций';
   }
 
   function renderRates(snapshot) {
@@ -814,13 +819,14 @@
     el.historyList.innerHTML = state.transactions
       .map((tx) => {
         const c = state.currencyMap.get(tx.currency);
-        const amountText = `+${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
+        const isWithdrawal = tx.type === 'withdrawal';
+        const amountText = `${isWithdrawal ? '−' : '+'}${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
         const isEditing = tx.id === state.editingId;
-        return `<div class="history-item${isEditing ? ' editing' : ''}" data-id="${tx.id}">
+        return `<div class="history-item${isEditing ? ' editing' : ''}${isWithdrawal ? ' withdrawal' : ''}" data-id="${tx.id}">
           <div class="item-flag">${c ? c.flag : '💰'}</div>
           <div class="item-body">
             <div class="item-top">
-              <span>${state.amountsHidden ? maskDigits(amountText) : amountText}</span>
+              <span class="item-amount${isWithdrawal ? ' negative' : ''}">${state.amountsHidden ? maskDigits(amountText) : amountText}</span>
               <span class="item-currency-code">${tx.currency}</span>
             </div>
             <div class="item-meta">${formatDate(tx.date)}</div>
@@ -869,8 +875,37 @@
     renderHistory();
   }
 
+  // Переключатель "Пополнить / Снять": управляет заголовком формы, текстом
+  // и иконкой кнопки отправки, а также визуальным состоянием самих табов.
+  function updateFormChrome() {
+    const isWithdrawal = state.transactionType === 'withdrawal';
+    el.typeDepositBtn.classList.toggle('active', !isWithdrawal);
+    el.typeWithdrawBtn.classList.toggle('active', isWithdrawal);
+    el.typeDepositBtn.setAttribute('aria-selected', String(!isWithdrawal));
+    el.typeWithdrawBtn.setAttribute('aria-selected', String(isWithdrawal));
+    el.submitBtn.classList.toggle('withdraw-mode', isWithdrawal);
+    if (el.submitBtnIcon) el.submitBtnIcon.textContent = isWithdrawal ? '💸' : '🪙';
+
+    if (state.editingId) {
+      el.formTitle.textContent = 'Редактировать запись';
+      el.submitBtnLabel.textContent = 'Сохранить изменения';
+    } else {
+      el.formTitle.textContent = isWithdrawal ? 'Снять из копилки' : 'Добавить накопление';
+      el.submitBtnLabel.textContent = isWithdrawal ? 'Снять из копилки' : 'Положить в копилку';
+    }
+  }
+
+  function setTransactionType(type) {
+    state.transactionType = type === 'withdrawal' ? 'withdrawal' : 'deposit';
+    updateFormChrome();
+  }
+
+  el.typeDepositBtn.addEventListener('click', () => setTransactionType('deposit'));
+  el.typeWithdrawBtn.addEventListener('click', () => setTransactionType('withdrawal'));
+
   function enterEditMode(tx) {
     state.editingId = tx.id;
+    state.transactionType = tx.type === 'withdrawal' ? 'withdrawal' : 'deposit';
     el.amountInput.value = formatAmountString(String(tx.amount));
 
     // Валюта записи могла быть отключена в настройках после её создания —
@@ -883,8 +918,7 @@
     el.currencySelect.value = tx.currency;
     state.selectedDate = tx.date;
     updateDateLabel();
-    el.formTitle.textContent = 'Редактировать запись';
-    el.submitBtnLabel.textContent = 'Сохранить изменения';
+    updateFormChrome();
     el.cancelEditBtn.hidden = false;
     el.formError.textContent = '';
     renderHistory();
@@ -894,12 +928,12 @@
 
   function exitEditMode() {
     state.editingId = null;
+    state.transactionType = 'deposit';
     el.addForm.reset();
     renderCurrencySelects(); // сбрасывает временный пункт с отключённой валютой, если он был добавлен
     state.selectedDate = todayISO();
     updateDateLabel();
-    el.formTitle.textContent = 'Добавить накопление';
-    el.submitBtnLabel.textContent = 'Положить в копилку';
+    updateFormChrome();
     el.cancelEditBtn.hidden = true;
     el.formError.textContent = '';
     renderHistory();
@@ -920,6 +954,7 @@
     }
 
     const editingId = state.editingId;
+    const type = state.transactionType;
     el.submitBtn.disabled = true;
     el.submitBtn.classList.add('dropping');
 
@@ -927,7 +962,7 @@
       if (editingId) {
         await api(`/transactions/${editingId}`, {
           method: 'PUT',
-          body: JSON.stringify({ amount, currency, date }),
+          body: JSON.stringify({ amount, currency, date, type }),
         });
 
         await refreshTransactions();
@@ -937,7 +972,7 @@
       } else {
         const tx = await api('/transactions', {
           method: 'POST',
-          body: JSON.stringify({ amount, currency, date }),
+          body: JSON.stringify({ amount, currency, date, type }),
         });
 
         state.transactions.unshift(tx);
@@ -945,7 +980,8 @@
         await refreshSummary();
 
         const c = state.currencyMap.get(tx.currency);
-        showToast(`Добавлено ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
+        const verb = type === 'withdrawal' ? 'Снято' : 'Добавлено';
+        showToast(`${verb} ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
 
         el.amountInput.value = '';
         el.amountInput.focus({ preventScroll: true });
@@ -987,6 +1023,7 @@
     state.pendingDeleteId = tx.id;
     const c = state.currencyMap.get(tx.currency);
     const amountText = `${formatNumber(tx.amount)} ${c ? c.symbol : ''}`;
+    el.deleteConfirmTypeLabel.textContent = tx.type === 'withdrawal' ? 'Снятие' : 'Пополнение';
     el.deleteConfirmAmount.textContent = state.amountsHidden ? maskDigits(amountText) : amountText;
     el.deleteConfirmDate.textContent = formatDate(tx.date);
     el.deleteConfirmBackdrop.hidden = false;
@@ -1197,6 +1234,7 @@
 
   state.selectedDate = todayISO();
   updateDateLabel();
+  updateFormChrome();
 
   if (window.ResizeObserver) {
     let resizeFrame = null;

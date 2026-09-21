@@ -769,6 +769,46 @@ body { overflow-x: hidden; }
 
 @media (max-width: 800px) { .form-card { position: static; } }
 
+.type-toggle {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.type-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.type-toggle-btn svg { width: 15px; height: 15px; }
+
+.type-toggle-btn:hover { color: var(--text); }
+
+.type-toggle-btn.active {
+  background: linear-gradient(120deg, var(--accent-a), var(--accent-b));
+  color: #fff;
+}
+
+.type-toggle-btn.active#typeWithdrawBtn {
+  background: linear-gradient(120deg, #f59e0b, var(--danger));
+}
+
 .field-row {
   display: flex;
   gap: 12px;
@@ -1008,6 +1048,11 @@ body { overflow-x: hidden; }
 .submit-btn:active { transform: translateY(0); }
 .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
+.submit-btn.withdraw-mode {
+  background: linear-gradient(120deg, #f59e0b, var(--danger));
+  box-shadow: 0 10px 30px -8px rgba(248, 113, 113, 0.6);
+}
+
 .cancel-edit-btn {
   flex: 0 0 auto;
   padding: 14px 18px;
@@ -1106,6 +1151,8 @@ body { overflow-x: hidden; }
   background: rgba(255, 255, 255, 0.06);
 }
 
+.history-item.withdrawal .item-flag { background: rgba(248, 113, 113, 0.12); }
+
 .item-body { flex: 1; min-width: 0; }
 
 .item-top {
@@ -1116,6 +1163,8 @@ body { overflow-x: hidden; }
   font-size: 15.5px;
   font-variant-numeric: tabular-nums;
 }
+
+.item-amount.negative { color: var(--danger); }
 
 .item-currency-code {
   font-size: 12px;

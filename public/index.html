@@ -62,7 +62,7 @@
               <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.29 20.29 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a20.29 20.29 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
             </button>
           </div>
-          <span class="summary-hint" id="txCountHint">Пока нет ни одного пополнения</span>
+          <span class="summary-hint" id="txCountHint">Пока нет ни одной операции</span>
         </div>
         <div class="summary-chips" id="currencyChips"></div>
       </div>
@@ -111,7 +111,7 @@
 
       <div class="chart-empty" id="chartEmpty" hidden>
         <div class="empty-icon">📈</div>
-        <p>Добавьте пополнения хотя бы за пару месяцев,<br />чтобы увидеть график динамики.</p>
+        <p>Добавьте операции хотя бы за пару месяцев,<br />чтобы увидеть график динамики.</p>
       </div>
     </section>
 
@@ -119,6 +119,17 @@
       <section class="card glass form-card">
         <h2 class="card-title" id="formTitle">Добавить накопление</h2>
         <form id="addForm" novalidate>
+          <div class="type-toggle" role="tablist" aria-label="Тип операции">
+            <button type="button" class="type-toggle-btn active" id="typeDepositBtn" role="tab" aria-selected="true" data-type="deposit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              Пополнить
+            </button>
+            <button type="button" class="type-toggle-btn" id="typeWithdrawBtn" role="tab" aria-selected="false" data-type="withdrawal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+              Снять
+            </button>
+          </div>
+
           <div class="field-row">
             <div class="field">
               <label for="amountInput">Сумма</label>
@@ -170,7 +181,7 @@
 
       <section class="card glass history-card">
         <div class="history-header">
-          <h2 class="card-title">История пополнений</h2>
+          <h2 class="card-title">История операций</h2>
           <span class="history-count" id="historyCount"></span>
         </div>
         <div class="history-list" id="historyList">
@@ -215,7 +226,7 @@
 
       <div class="modal-body">
         <p class="delete-confirm-text">
-          Пополнение <strong id="deleteConfirmAmount"></strong> от <span id="deleteConfirmDate"></span> будет удалено безвозвратно.
+          <span id="deleteConfirmTypeLabel">Пополнение</span> <strong id="deleteConfirmAmount"></strong> от <span id="deleteConfirmDate"></span> будет удалено безвозвратно.
         </p>
         <div class="modal-actions">
           <button type="button" class="modal-btn modal-btn-secondary" id="deleteConfirmCancelBtn">Отмена</button>
