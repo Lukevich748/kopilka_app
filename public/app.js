@@ -11,7 +11,6 @@
     currencySelect: document.getElementById('currencySelect'),
     amountInput: document.getElementById('amountInput'),
     dateInput: document.getElementById('dateInput'),
-    noteInput: document.getElementById('noteInput'),
     addForm: document.getElementById('addForm'),
     formError: document.getElementById('formError'),
     submitBtn: document.querySelector('.submit-btn'),
@@ -120,7 +119,6 @@
     el.historyList.innerHTML = state.transactions
       .map((tx) => {
         const c = state.currencyMap.get(tx.currency);
-        const note = tx.note ? escapeHTML(tx.note) : '';
         return `<div class="history-item" data-id="${tx.id}">
           <div class="item-flag">${c ? c.flag : '💰'}</div>
           <div class="item-body">
@@ -128,18 +126,12 @@
               <span>+${formatNumber(tx.amount)} ${c ? c.symbol : ''}</span>
               <span class="item-currency-code">${tx.currency}</span>
             </div>
-            <div class="item-meta">${formatDate(tx.date)}${note ? ' · ' + note : ''}</div>
+            <div class="item-meta">${formatDate(tx.date)}</div>
           </div>
           <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
         </div>`;
       })
       .join('');
-  }
-
-  function escapeHTML(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   async function loadAll() {
@@ -172,7 +164,6 @@
     const amount = parseFloat(el.amountInput.value);
     const currency = el.currencySelect.value;
     const date = el.dateInput.value || todayISO();
-    const note = el.noteInput.value.trim();
 
     if (!amount || amount <= 0) {
       el.formError.textContent = 'Введите сумму больше нуля';
@@ -186,7 +177,7 @@
     try {
       const tx = await api('/transactions', {
         method: 'POST',
-        body: JSON.stringify({ amount, currency, date, note }),
+        body: JSON.stringify({ amount, currency, date }),
       });
 
       state.transactions.unshift(tx);
@@ -197,7 +188,6 @@
       showToast(`Добавлено ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
 
       el.amountInput.value = '';
-      el.noteInput.value = '';
       el.amountInput.focus();
     } catch (err) {
       el.formError.textContent = err.message;

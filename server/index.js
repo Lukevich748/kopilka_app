@@ -69,7 +69,7 @@ app.get('/api/transactions', (req, res) => {
 });
 
 app.post('/api/transactions', async (req, res) => {
-  const { amount, currency, note, date } = req.body || {};
+  const { amount, currency, date } = req.body || {};
 
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
@@ -79,13 +79,11 @@ app.post('/api/transactions', async (req, res) => {
     return res.status(400).json({ error: 'Неподдерживаемая валюта' });
   }
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  const safeNote = typeof note === 'string' ? note.trim().slice(0, 200) : '';
 
   const tx = {
     id: crypto.randomUUID(),
     amount: round2(numericAmount),
     currency,
-    note: safeNote,
     date: safeDate,
     createdAt: new Date().toISOString(),
   };
