@@ -548,12 +548,6 @@ body { overflow-x: hidden; }
   color: var(--text-dim);
 }
 
-.rates-panel-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .rates-refresh,
 .rates-nominal-btn,
 .rates-back-close {
@@ -644,9 +638,19 @@ body { overflow-x: hidden; }
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Нижняя строка лицевой стороны: статус обновления курсов + кнопка
+   перехода к настройке номинала — вместе они дают этой строке нормальный
+   вес наравне с шапкой, а не выглядят одиноким мелким текстом у края. */
+.rates-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .rates-updated {
   display: block;
-  margin-top: 12px;
   font-size: 11.5px;
   color: var(--text-faint);
 }

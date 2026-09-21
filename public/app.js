@@ -654,7 +654,10 @@
   }
 
   function renderRatesNominalList() {
+    // EUR по курсу близок к USD — менять для него номинал не имеет смысла,
+    // поэтому на обратной стороне его не показываем (в отличие от лицевой).
     el.ratesNominalList.innerHTML = visibleRates()
+      .filter((r) => r.code !== 'EUR')
       .map(
         (r) => `<div class="rate-nominal-row">
           <span class="rate-pair">${r.flag} ${r.code}</span>
