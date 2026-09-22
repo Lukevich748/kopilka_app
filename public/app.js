@@ -76,6 +76,14 @@
   };
 
   const el = {
+    app: document.getElementById('app'),
+    loginScreen: document.getElementById('loginScreen'),
+    loginForm: document.getElementById('loginForm'),
+    loginUsername: document.getElementById('loginUsername'),
+    loginPassword: document.getElementById('loginPassword'),
+    loginSubmitBtn: document.getElementById('loginSubmitBtn'),
+    loginError: document.getElementById('loginError'),
+    logoutBtn: document.getElementById('logoutBtn'),
     baseCurrencySelect: document.getElementById('baseCurrencySelect'),
     currencySelect: document.getElementById('currencySelect'),
     amountInput: document.getElementById('amountInput'),
@@ -1640,8 +1648,63 @@
     totalVisibilityObserver.observe(el.grandTotalValue);
   }
 
-  loadAll().catch((err) => {
-    console.error(err);
-    showToast('Не удалось загрузить данные с сервера', 'error');
+  function showApp() {
+    el.loginScreen.hidden = true;
+    el.app.hidden = false;
+  }
+
+  function showLogin() {
+    el.app.hidden = true;
+    el.loginScreen.hidden = false;
+    el.loginUsername.focus({ preventScroll: true });
+  }
+
+  el.loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    el.loginError.textContent = '';
+    el.loginSubmitBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: el.loginUsername.value, password: el.loginPassword.value }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Не удалось войти');
+      }
+      el.loginForm.reset();
+      showApp();
+      await loadAll();
+    } catch (err) {
+      el.loginError.textContent = err.message;
+    } finally {
+      el.loginSubmitBtn.disabled = false;
+    }
   });
+
+  el.logoutBtn.addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      /* сеть недоступна — куку всё равно сбросим локальной перезагрузкой */
+    }
+    location.reload();
+  });
+
+  fetch('/api/auth/status')
+    .then((res) => res.json())
+    .then(({ authenticated }) => {
+      if (!authenticated) return showLogin();
+      showApp();
+      return loadAll().catch((err) => {
+        console.error(err);
+        showToast('Не удалось загрузить данные с сервера', 'error');
+      });
+    })
+    .catch((err) => {
+      console.error(err);
+      showLogin();
+    });
 })();

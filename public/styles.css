@@ -32,6 +32,32 @@ html, body {
 
 body { overflow-x: hidden; }
 
+/* ---------- Login screen ---------- */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg);
+}
+
+.login-screen[hidden] { display: none; }
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 32px;
+}
+
+.login-card .brand { margin-bottom: 24px; }
+
+.login-card .field { margin-bottom: 14px; }
+
+.login-card .submit-btn { width: 100%; margin-top: 6px; }
+
 /* ---------- Animated background ---------- */
 .bg-blobs {
   position: fixed;

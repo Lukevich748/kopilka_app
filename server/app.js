@@ -4,11 +4,37 @@ const express = require('express');
 const db = require('./db');
 const { CURRENCIES, isSupportedCurrency } = require('./currencies');
 const rates = require('./rates');
+const auth = require('./auth');
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// --- Аутентификация ---
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    const ok = await auth.checkCredentials(username, password);
+    if (!ok) return res.status(401).json({ error: 'Неверный логин или пароль' });
+    auth.setSessionCookie(res);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  auth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/status', (req, res) => {
+  res.json({ authenticated: auth.isAuthenticated(req) });
+});
+
+// Всё остальное под /api/* требует входа.
+app.use('/api', auth.requireAuth);
 
 function signedAmount(tx) {
   return tx.type === 'withdrawal' ? -tx.amount : tx.amount;
