@@ -144,7 +144,7 @@ app.get('/api/transactions', (req, res) => {
 });
 
 function parseTransactionInput(body) {
-  const { amount, currency, date, type } = body || {};
+  const { amount, currency, date, type, comment } = body || {};
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     return { error: 'Сумма должна быть положительным числом' };
@@ -154,7 +154,8 @@ function parseTransactionInput(body) {
   }
   const safeType = type === 'withdrawal' ? 'withdrawal' : 'deposit';
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  return { amount: round2(numericAmount), currency, date: safeDate, type: safeType };
+  const safeComment = typeof comment === 'string' ? comment.trim().slice(0, 300) : '';
+  return { amount: round2(numericAmount), currency, date: safeDate, type: safeType, comment: safeComment };
 }
 
 app.post('/api/transactions', async (req, res) => {
@@ -179,6 +180,7 @@ app.post('/api/transactions', async (req, res) => {
     currency: parsed.currency,
     type: parsed.type,
     date: parsed.date,
+    comment: parsed.comment,
     createdAt: new Date().toISOString(),
   };
 
@@ -213,6 +215,7 @@ app.put('/api/transactions/:id', async (req, res) => {
   tx.currency = parsed.currency;
   tx.type = parsed.type;
   tx.date = parsed.date;
+  tx.comment = parsed.comment;
   tx.updatedAt = new Date().toISOString();
 
   await writeDb(db);

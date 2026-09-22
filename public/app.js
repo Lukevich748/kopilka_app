@@ -79,6 +79,7 @@
     baseCurrencySelect: document.getElementById('baseCurrencySelect'),
     currencySelect: document.getElementById('currencySelect'),
     amountInput: document.getElementById('amountInput'),
+    commentInput: document.getElementById('commentInput'),
     dateInputBtn: document.getElementById('dateInputBtn'),
     dateInputLabel: document.getElementById('dateInputLabel'),
     dateField: document.querySelector('.date-field'),
@@ -987,6 +988,7 @@
         <span class="item-currency-code"></span>
       </div>
       <div class="item-meta"></div>
+      <div class="item-comment"></div>
     </div>
     <div class="item-actions">
       <button class="item-edit" type="button" title="Редактировать" aria-label="Редактировать запись">
@@ -1020,6 +1022,12 @@
     itemEl.querySelector('.item-flag').textContent = c ? c.flag : '💰';
     itemEl.querySelector('.item-currency-code').textContent = tx.currency;
     itemEl.querySelector('.item-meta').textContent = formatDate(tx.date);
+    const commentEl = itemEl.querySelector('.item-comment');
+    if (tx.comment) {
+      commentEl.textContent = tx.comment;
+    } else {
+      commentEl.remove();
+    }
     updateHistoryItemAmount(itemEl, tx);
     return itemEl;
   }
@@ -1236,6 +1244,7 @@
     state.editingId = tx.id;
     state.transactionType = tx.type === 'withdrawal' ? 'withdrawal' : 'deposit';
     el.amountInput.value = formatAmountString(String(tx.amount));
+    el.commentInput.value = tx.comment || '';
 
     // Валюта записи могла быть отключена в настройках после её создания —
     // временно добавляем её в список, чтобы не потерять/не подменить молча.
@@ -1275,6 +1284,7 @@
     const amount = parseAmountInput(el.amountInput.value);
     const currency = el.currencySelect.value;
     const date = state.selectedDate || todayISO();
+    const comment = el.commentInput.value.trim();
 
     if (!amount || amount <= 0) {
       el.formError.textContent = 'Введите сумму больше нуля';
@@ -1291,7 +1301,7 @@
       if (editingId) {
         await api(`/transactions/${editingId}`, {
           method: 'PUT',
-          body: JSON.stringify({ amount, currency, date, type }),
+          body: JSON.stringify({ amount, currency, date, type, comment }),
         });
 
         await refreshTransactions();
@@ -1301,7 +1311,7 @@
       } else {
         const tx = await api('/transactions', {
           method: 'POST',
-          body: JSON.stringify({ amount, currency, date, type }),
+          body: JSON.stringify({ amount, currency, date, type, comment }),
         });
 
         state.transactions.unshift(tx);
@@ -1313,6 +1323,7 @@
         showToast(`${verb} ${formatNumber(tx.amount)} ${c ? c.symbol : ''}`);
 
         el.amountInput.value = '';
+        el.commentInput.value = '';
         el.amountInput.focus({ preventScroll: true });
       }
     } catch (err) {
