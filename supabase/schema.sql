@@ -29,8 +29,31 @@ create table if not exists transactions (
 
 create index if not exists transactions_date_idx on transactions (date desc, created_at desc);
 
+-- Аккаунт для входа в приложение. Регистрация через форму в приложении
+-- разрешена только пока эта таблица пуста — одного аккаунта достаточно.
+create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  username text not null unique,
+  password_hash text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Сессии входа: кука хранит только token, сама сессия и её срок годности —
+-- здесь. Без этого на serverless (Vercel) пришлось бы держать секрет для
+-- подписи куки отдельной переменной окружения.
+create table if not exists sessions (
+  token text primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create index if not exists sessions_expires_at_idx on sessions (expires_at);
+
 -- Row Level Security: сервер обращается к базе через service-role ключ,
 -- который обходит RLS, поэтому таблицы можно оставить закрытыми для
 -- анонимного/публичного доступа (anon-ключ в приложении не используется).
 alter table settings enable row level security;
 alter table transactions enable row level security;
+alter table users enable row level security;
+alter table sessions enable row level security;

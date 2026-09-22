@@ -89,6 +89,48 @@ async function deleteTransaction(id) {
   return data ? rowToTx(data) : null;
 }
 
+async function countUsers() {
+  const { count, error } = await supabase.from('users').select('*', { count: 'exact', head: true });
+  if (error) throw error;
+  return count || 0;
+}
+
+async function createUser({ username, passwordHash }) {
+  const { data, error } = await supabase
+    .from('users')
+    .insert({ username, password_hash: passwordHash })
+    .select()
+    .single();
+  if (error) {
+    if (error.code === '23505') throw new Error('Такой логин уже занят');
+    throw error;
+  }
+  return data;
+}
+
+async function getUserByUsername(username) {
+  const { data, error } = await supabase.from('users').select('*').eq('username', username).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function createSession({ token, userId, expiresAt }) {
+  const { error } = await supabase.from('sessions').insert({ token, user_id: userId, expires_at: expiresAt });
+  if (error) throw error;
+}
+
+async function getValidSession(token) {
+  const { data, error } = await supabase.from('sessions').select('*').eq('token', token).maybeSingle();
+  if (error) throw error;
+  if (!data || new Date(data.expires_at).getTime() < Date.now()) return null;
+  return data;
+}
+
+async function deleteSession(token) {
+  const { error } = await supabase.from('sessions').delete().eq('token', token);
+  if (error) throw error;
+}
+
 module.exports = {
   getSettings,
   saveSettings,
@@ -97,4 +139,10 @@ module.exports = {
   insertTransaction,
   updateTransaction,
   deleteTransaction,
+  countUsers,
+  createUser,
+  getUserByUsername,
+  createSession,
+  getValidSession,
+  deleteSession,
 };

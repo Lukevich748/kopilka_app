@@ -29,9 +29,11 @@
         </span>
         <div>
           <h1>Копилка</h1>
-          <p class="brand-sub">Вход в приложение</p>
+          <p class="brand-sub" id="loginSubtitle">Вход в приложение</p>
         </div>
       </div>
+
+      <p class="login-hint" id="loginHint" hidden>Это разовая настройка — придумайте логин и пароль для входа.</p>
 
       <form id="loginForm" novalidate>
         <div class="field">
@@ -40,7 +42,7 @@
         </div>
         <div class="field">
           <label for="loginPassword">Пароль</label>
-          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="6" />
         </div>
         <button type="submit" class="submit-btn" id="loginSubmitBtn">Войти</button>
         <p class="form-error" id="loginError" role="alert"></p>

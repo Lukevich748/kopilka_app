@@ -1,45 +1,22 @@
-// Простая аутентификация по логину/паролю для одного пользователя —
-// без отдельной таблицы пользователей: логин и bcrypt-хеш пароля заданы
-// переменными окружения, а сессия — это самоподписанный (HMAC) токен в
-// httpOnly-куке. Ни памяти на сервере, ни БД для сессий не нужно — подходит
-// для serverless, где нет гарантии, что следующий запрос попадёт в тот же
-// прогретый инстанс функции.
+// Аутентификация с простейшей регистрацией прямо в приложении — без
+// переменных окружения для логина/пароля/секрета подписи. Пользователь и
+// сессии хранятся в Supabase (см. supabase/schema.sql: users, sessions).
+// Кука хранит только случайный opaque-токен сессии, её валидность и срок
+// годности проверяются запросом к БД — так и на serverless не нужен
+// отдельный секрет для подписи куки.
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const db = require('./db');
 
 const COOKIE_NAME = 'kopilka_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней
 
-function getSecret() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error('Не задана переменная окружения SESSION_SECRET');
-  return secret;
-}
+// Хеш заведомо несуществующего пароля — сравниваем с ним, когда логина нет
+// в базе, чтобы попытка входа под несуществующим логином занимала по времени
+// столько же, сколько под существующим с неверным паролем.
+const DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8O9qzGDcPmvE6yTJVMHW3XvhOKvY.6';
 
-function sign(value) {
-  return crypto.createHmac('sha256', getSecret()).update(value).digest('hex');
-}
-
-function createSessionToken() {
-  const expires = String(Date.now() + SESSION_TTL_MS);
-  return `${expires}.${sign(expires)}`;
-}
-
-function verifySessionToken(token) {
-  if (!token) return false;
-  const [expires, sig] = token.split('.');
-  if (!expires || !sig) return false;
-
-  const expectedSig = sign(expires);
-  const sigBuf = Buffer.from(sig);
-  const expectedBuf = Buffer.from(expectedSig);
-  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-    return false;
-  }
-
-  const expiresAt = Number(expires);
-  return Number.isFinite(expiresAt) && Date.now() < expiresAt;
-}
+class AuthError extends Error {}
 
 function parseCookies(header) {
   const out = {};
@@ -52,47 +29,88 @@ function parseCookies(header) {
   return out;
 }
 
-function isAuthenticated(req) {
-  const cookies = parseCookies(req.headers.cookie);
-  return verifySessionToken(cookies[COOKIE_NAME]);
+function getTokenFromReq(req) {
+  return parseCookies(req.headers.cookie)[COOKIE_NAME];
 }
 
-function setSessionCookie(res) {
+function setSessionCookie(res, token) {
   const maxAgeSec = Math.floor(SESSION_TTL_MS / 1000);
   const secureAttr = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  res.setHeader(
-    'Set-Cookie',
-    `${COOKIE_NAME}=${createSessionToken()}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax${secureAttr}`
-  );
+  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax${secureAttr}`);
 }
 
 function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
 }
 
-// Логин и пароль проверяются независимо и всегда оба (без short-circuit по
-// логину), чтобы не давать по времени ответа отличить "неверный логин" от
-// "неверный пароль".
-async function checkCredentials(username, password) {
-  const expectedUsername = process.env.AUTH_USERNAME;
-  const expectedHash = process.env.AUTH_PASSWORD_HASH;
-  if (!expectedUsername || !expectedHash) {
-    throw new Error('Не заданы переменные окружения AUTH_USERNAME / AUTH_PASSWORD_HASH');
+async function hasAccount() {
+  return (await db.countUsers()) > 0;
+}
+
+async function createSessionForUser(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  await db.createSession({ token, userId, expiresAt });
+  return token;
+}
+
+// Регистрация разрешена только пока нет ни одного аккаунта — приложение
+// личное, одного пользователя достаточно, а открытая регистрация отдала бы
+// доступ к общим накоплениям любому, кто найдёт ссылку.
+async function register(username, password) {
+  const cleanUsername = typeof username === 'string' ? username.trim() : '';
+  if (!cleanUsername) throw new AuthError('Введите логин');
+  if (typeof password !== 'string' || password.length < 6) {
+    throw new AuthError('Пароль должен быть не короче 6 символов');
+  }
+  if (await hasAccount()) {
+    throw new AuthError('Регистрация уже пройдена — войдите через форму входа');
   }
 
-  const usernameBuf = Buffer.from(typeof username === 'string' ? username : '');
-  const expectedUsernameBuf = Buffer.from(expectedUsername);
-  const usernameOk =
-    usernameBuf.length === expectedUsernameBuf.length && crypto.timingSafeEqual(usernameBuf, expectedUsernameBuf);
-
-  const passwordOk = await bcrypt.compare(typeof password === 'string' ? password : '', expectedHash);
-
-  return usernameOk && passwordOk;
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await db.createUser({ username: cleanUsername, passwordHash });
+  return createSessionForUser(user.id);
 }
 
-function requireAuth(req, res, next) {
-  if (isAuthenticated(req)) return next();
-  res.status(401).json({ error: 'Требуется вход' });
+async function login(username, password) {
+  const cleanUsername = typeof username === 'string' ? username.trim() : '';
+  const user = await db.getUserByUsername(cleanUsername);
+  const passwordOk = await bcrypt.compare(
+    typeof password === 'string' ? password : '',
+    user ? user.password_hash : DUMMY_HASH
+  );
+  if (!user || !passwordOk) throw new AuthError('Неверный логин или пароль');
+  return createSessionForUser(user.id);
 }
 
-module.exports = { checkCredentials, setSessionCookie, clearSessionCookie, requireAuth, isAuthenticated };
+async function logout(req) {
+  const token = getTokenFromReq(req);
+  if (token) await db.deleteSession(token);
+}
+
+async function isAuthenticated(req) {
+  const token = getTokenFromReq(req);
+  if (!token) return false;
+  return !!(await db.getValidSession(token));
+}
+
+async function requireAuth(req, res, next) {
+  try {
+    if (await isAuthenticated(req)) return next();
+    res.status(401).json({ error: 'Требуется вход' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  AuthError,
+  hasAccount,
+  register,
+  login,
+  logout,
+  isAuthenticated,
+  requireAuth,
+  setSessionCookie,
+  clearSessionCookie,
+};

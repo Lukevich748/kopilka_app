@@ -12,25 +12,47 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // --- Аутентификация ---
+app.post('/api/auth/register', async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    const token = await auth.register(username, password);
+    auth.setSessionCookie(res, token);
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    if (err instanceof auth.AuthError) return res.status(400).json({ error: err.message });
+    next(err);
+  }
+});
+
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
-    const ok = await auth.checkCredentials(username, password);
-    if (!ok) return res.status(401).json({ error: 'Неверный логин или пароль' });
-    auth.setSessionCookie(res);
+    const token = await auth.login(username, password);
+    auth.setSessionCookie(res, token);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof auth.AuthError) return res.status(401).json({ error: err.message });
+    next(err);
+  }
+});
+
+app.post('/api/auth/logout', async (req, res, next) => {
+  try {
+    await auth.logout(req);
+    auth.clearSessionCookie(res);
     res.json({ ok: true });
   } catch (err) {
     next(err);
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
-  auth.clearSessionCookie(res);
-  res.json({ ok: true });
-});
-
-app.get('/api/auth/status', (req, res) => {
-  res.json({ authenticated: auth.isAuthenticated(req) });
+app.get('/api/auth/status', async (req, res, next) => {
+  try {
+    const [authenticated, hasAccount] = await Promise.all([auth.isAuthenticated(req), auth.hasAccount()]);
+    res.json({ authenticated, hasAccount });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Всё остальное под /api/* требует входа.

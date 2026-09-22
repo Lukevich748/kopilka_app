@@ -78,6 +78,8 @@
   const el = {
     app: document.getElementById('app'),
     loginScreen: document.getElementById('loginScreen'),
+    loginSubtitle: document.getElementById('loginSubtitle'),
+    loginHint: document.getElementById('loginHint'),
     loginForm: document.getElementById('loginForm'),
     loginUsername: document.getElementById('loginUsername'),
     loginPassword: document.getElementById('loginPassword'),
@@ -1648,6 +1650,16 @@
     totalVisibilityObserver.observe(el.grandTotalValue);
   }
 
+  let isRegisterMode = false;
+
+  function applyLoginMode(hasAccount) {
+    isRegisterMode = !hasAccount;
+    el.loginSubtitle.textContent = isRegisterMode ? 'Создайте аккаунт' : 'Вход в приложение';
+    el.loginSubmitBtn.textContent = isRegisterMode ? 'Зарегистрироваться' : 'Войти';
+    el.loginHint.hidden = !isRegisterMode;
+    el.loginPassword.setAttribute('autocomplete', isRegisterMode ? 'new-password' : 'current-password');
+  }
+
   function showApp() {
     el.loginScreen.hidden = true;
     el.app.hidden = false;
@@ -1665,14 +1677,14 @@
     el.loginSubmitBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(isRegisterMode ? '/api/auth/register' : '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: el.loginUsername.value, password: el.loginPassword.value }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Не удалось войти');
+        throw new Error(body.error || 'Не удалось выполнить вход');
       }
       el.loginForm.reset();
       showApp();
@@ -1695,7 +1707,8 @@
 
   fetch('/api/auth/status')
     .then((res) => res.json())
-    .then(({ authenticated }) => {
+    .then(({ authenticated, hasAccount }) => {
+      applyLoginMode(hasAccount);
       if (!authenticated) return showLogin();
       showApp();
       return loadAll().catch((err) => {
