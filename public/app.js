@@ -601,7 +601,7 @@
     } else {
       state.pendingTotalText = displayText;
     }
-    el.grandTotalCurrency.textContent = currency ? `${currency.symbol} ${currency.code}` : summary.baseCurrency;
+    el.grandTotalCurrency.textContent = currency ? currency.code : summary.baseCurrency;
 
     el.txCountHint.textContent = summary.transactionsCount
       ? `${summary.transactionsCount} ${pluralizeEntries(summary.transactionsCount)} · пересчитано ориентировочно`
