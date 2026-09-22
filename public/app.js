@@ -96,7 +96,6 @@
     typeDepositBtn: document.getElementById('typeDepositBtn'),
     typeWithdrawBtn: document.getElementById('typeWithdrawBtn'),
     submitBtn: document.querySelector('.submit-btn'),
-    submitBtnIcon: document.querySelector('.submit-btn .coin'),
     submitBtnLabel: document.getElementById('submitBtnLabel'),
     cancelEditBtn: document.getElementById('cancelEditBtn'),
     grandTotalValue: document.querySelector('#grandTotal .amount-value'),
@@ -994,7 +993,7 @@
       <button class="item-edit" type="button" title="Редактировать" aria-label="Редактировать запись">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       </button>
-      <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись">✕</button>
+      <button class="item-delete" type="button" title="Удалить" aria-label="Удалить запись"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <button class="item-delete-confirm" type="button" title="Подтвердить удаление" aria-label="Подтвердить удаление">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
       </button>
@@ -1019,7 +1018,12 @@
     itemEl.className = `history-item${tx.id === state.editingId ? ' editing' : ''}${isWithdrawal ? ' withdrawal' : ''}`;
     itemEl.dataset.id = tx.id;
     itemEl.innerHTML = HISTORY_ITEM_TEMPLATE;
-    itemEl.querySelector('.item-flag').textContent = c ? c.flag : '💰';
+    const flagEl = itemEl.querySelector('.item-flag');
+    if (c) {
+      flagEl.textContent = c.flag;
+    } else {
+      flagEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.744 17.736a6 6 0 1 1-7.48-7.48"/><path d="M15 6h1v4"/><path d="m6.134 14.768.866-.5 2 3.464"/><circle cx="16" cy="8" r="6"/></svg>';
+    }
     itemEl.querySelector('.item-currency-code').textContent = tx.currency;
     itemEl.querySelector('.item-meta').textContent = formatDate(tx.date);
     const commentEl = itemEl.querySelector('.item-comment');
@@ -1221,7 +1225,6 @@
     el.typeDepositBtn.setAttribute('aria-selected', String(!isWithdrawal));
     el.typeWithdrawBtn.setAttribute('aria-selected', String(isWithdrawal));
     el.submitBtn.classList.toggle('withdraw-mode', isWithdrawal);
-    if (el.submitBtnIcon) el.submitBtnIcon.textContent = isWithdrawal ? '💸' : '🪙';
 
     if (state.editingId) {
       el.formTitle.textContent = 'Редактировать запись';

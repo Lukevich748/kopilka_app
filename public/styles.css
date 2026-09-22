@@ -245,6 +245,7 @@ body { overflow-x: hidden; }
 }
 
 .modal-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+.modal-close svg { width: 15px; height: 15px; }
 
 .settings-section h3 {
   margin: 22px 0 4px;
@@ -580,6 +581,9 @@ body { overflow-x: hidden; }
 .rates-back-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--text); }
 
 .rates-refresh.spinning { animation: spin 0.7s linear infinite; }
+
+.rates-refresh svg,
+.rates-back-close svg { width: 15px; height: 15px; }
 
 .rates-nominal-btn svg { width: 13px; height: 13px; }
 .rates-nominal-btn[aria-pressed="true"] { background: rgba(139, 92, 246, 0.18); color: var(--accent-a); }
@@ -1158,12 +1162,17 @@ body { overflow-x: hidden; }
 .cancel-edit-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
 .submit-btn .coin {
-  display: inline-block;
+  display: inline-flex;
   transition: transform 0.4s ease;
 }
 .submit-btn.dropping .coin {
   animation: coinDrop 0.5s ease;
 }
+
+.submit-btn .coin svg { width: 18px; height: 18px; }
+.submit-btn .coin .icon-withdraw { display: none; }
+.submit-btn.withdraw-mode .coin .icon-deposit { display: none; }
+.submit-btn.withdraw-mode .coin .icon-withdraw { display: block; }
 
 @keyframes coinDrop {
   0% { transform: translateY(-6px) rotate(0deg); }
@@ -1241,6 +1250,7 @@ body { overflow-x: hidden; }
 }
 
 .history-item.withdrawal .item-flag { background: rgba(248, 113, 113, 0.12); }
+.item-flag svg { width: 19px; height: 19px; }
 
 .item-body { flex: 1; min-width: 0; }
 
@@ -1308,7 +1318,8 @@ body { overflow-x: hidden; }
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.item-edit svg { width: 15px; height: 15px; }
+.item-edit svg,
+.item-delete svg { width: 15px; height: 15px; }
 
 .history-item:hover .item-edit,
 .history-item:hover .item-delete { opacity: 1; }
@@ -1385,6 +1396,7 @@ body { overflow-x: hidden; }
 }
 
 .empty-icon { font-size: 42px; opacity: 0.7; }
+.empty-icon svg { width: 42px; height: 42px; }
 .empty-state p { margin: 0; line-height: 1.5; font-size: 14px; }
 
 @keyframes rise {
