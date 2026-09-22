@@ -391,12 +391,32 @@
   //    держим старое количество разрядов, пока едет анимация, лишние старшие
   //    разряды слева докручиваются до '0', а по завершении переезда лент их
   //    тихо убирают из DOM (см. shrinking-ветку ниже) — без видимого скачка.
+  // Выравнивание по правому краю корректно только тогда, когда "скелеты"
+  // разделителей (пробелы между разрядами тысяч, запятая) у обеих строк
+  // совпадают на пересекающемся хвосте — т.е. цифра всегда встаёт напротив
+  // цифры, а разделитель напротив разделителя. Это ломается, например, при
+  // смене базовой валюты: одновременно меняется и группировка тысяч, и
+  // число знаков после запятой (Intl обрезает лишний ноль), из-за чего
+  // разряд может "выровняться" напротив запятой или пробела — и вся
+  // анимация превращается в кашу из случайных цифр вместо плавного счёта.
+  function canRightAlignOdometerChars(domChars, otherChars, diff) {
+    for (let i = diff; i < domChars.length; i++) {
+      if (/\d/.test(domChars[i]) !== /\d/.test(otherChars[i - diff])) return false;
+    }
+    return true;
+  }
+
   function rebuildOdometerAligned(container, prevText, text, shrinking) {
     const oldChars = prevText.split('');
     const newChars = text.split('');
     const domChars = shrinking ? oldChars : newChars; // раскладка DOM на время самой анимации
     const otherChars = shrinking ? newChars : oldChars;
     const diff = domChars.length - otherChars.length;
+
+    if (!canRightAlignOdometerChars(domChars, otherChars, diff)) {
+      rebuildOdometer(container, text);
+      return;
+    }
 
     container.innerHTML = '';
     const pending = [];
