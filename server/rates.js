@@ -38,6 +38,17 @@ function convert(amount, fromCode, toCode) {
   return (amount * fromRate) / toRate;
 }
 
+// На serverless-хостингах (Vercel) фоновый setInterval ненадёжен — функция
+// "замораживается" между вызовами. Поэтому перед тем, как курсы понадобятся
+// для ответа, проверяем их возраст и при необходимости подтягиваем свежие
+// прямо в рамках запроса.
+async function ensureFreshRates() {
+  const age = state.updatedAt ? Date.now() - new Date(state.updatedAt).getTime() : Infinity;
+  if (age > REFRESH_INTERVAL_MS) {
+    await fetchLiveRates();
+  }
+}
+
 function getSnapshot() {
   return {
     updatedAt: state.updatedAt,
@@ -91,4 +102,4 @@ function startAutoRefresh() {
   setInterval(fetchLiveRates, REFRESH_INTERVAL_MS);
 }
 
-module.exports = { getRateToUSD, convert, getSnapshot, fetchLiveRates, startAutoRefresh };
+module.exports = { getRateToUSD, convert, getSnapshot, fetchLiveRates, startAutoRefresh, ensureFreshRates };

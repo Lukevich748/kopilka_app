@@ -1,51 +1,100 @@
-const fs = require('fs');
-const path = require('path');
+// Доступ к данным через Supabase (Postgres) вместо локального JSON-файла —
+// нужно для работы на serverless-хостингах (Vercel), где диск не сохраняется
+// между вызовами функции. Схема таблиц — в supabase/schema.sql.
+const supabase = require('./supabase');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'db.json');
-
-const DEFAULT_DATA = {
-  settings: { baseCurrency: 'USD', enabledCurrencies: ['USD', 'EUR', 'PLN', 'RUB', 'BYN'] },
-  transactions: [],
+const DEFAULT_SETTINGS = {
+  baseCurrency: 'USD',
+  enabledCurrencies: ['USD', 'EUR', 'PLN', 'RUB', 'BYN'],
 };
 
-function ensureDb() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(DEFAULT_DATA, null, 2));
-  }
+function rowToTx(row) {
+  return {
+    id: row.id,
+    amount: Number(row.amount),
+    currency: row.currency,
+    type: row.type,
+    date: row.date,
+    comment: row.comment || '',
+    createdAt: row.created_at,
+    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+  };
 }
 
-function readDb() {
-  ensureDb();
-  const raw = fs.readFileSync(DB_PATH, 'utf-8');
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      settings: { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) },
-      transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-    };
-  } catch {
-    return { ...DEFAULT_DATA };
-  }
+async function getSettings() {
+  const { data, error } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
+  if (error) throw error;
+  if (!data) return { ...DEFAULT_SETTINGS };
+  return { baseCurrency: data.base_currency, enabledCurrencies: data.enabled_currencies };
 }
 
-// Единая очередь записи, чтобы параллельные запросы не затирали друг друга
-// при записи в файл (это не БД с транзакциями, а простой JSON-файл).
-let writeQueue = Promise.resolve();
-
-function writeDb(data) {
-  writeQueue = writeQueue.then(
-    () =>
-      new Promise((resolve, reject) => {
-        const tmpPath = `${DB_PATH}.tmp`;
-        fs.writeFile(tmpPath, JSON.stringify(data, null, 2), (err) => {
-          if (err) return reject(err);
-          fs.rename(tmpPath, DB_PATH, (err2) => (err2 ? reject(err2) : resolve()));
-        });
-      })
-  );
-  return writeQueue;
+async function saveSettings(settings) {
+  const { error } = await supabase.from('settings').upsert({
+    id: 1,
+    base_currency: settings.baseCurrency,
+    enabled_currencies: settings.enabledCurrencies,
+  });
+  if (error) throw error;
 }
 
-module.exports = { readDb, writeDb };
+async function listTransactions() {
+  const { data, error } = await supabase.from('transactions').select('*');
+  if (error) throw error;
+  return data.map(rowToTx);
+}
+
+async function getTransaction(id) {
+  const { data, error } = await supabase.from('transactions').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToTx(data) : null;
+}
+
+async function insertTransaction(tx) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      amount: tx.amount,
+      currency: tx.currency,
+      type: tx.type,
+      date: tx.date,
+      comment: tx.comment,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToTx(data);
+}
+
+async function updateTransaction(id, tx) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({
+      amount: tx.amount,
+      currency: tx.currency,
+      type: tx.type,
+      date: tx.date,
+      comment: tx.comment,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToTx(data) : null;
+}
+
+async function deleteTransaction(id) {
+  const { data, error } = await supabase.from('transactions').delete().eq('id', id).select().maybeSingle();
+  if (error) throw error;
+  return data ? rowToTx(data) : null;
+}
+
+module.exports = {
+  getSettings,
+  saveSettings,
+  listTransactions,
+  getTransaction,
+  insertTransaction,
+  updateTransaction,
+  deleteTransaction,
+};
